@@ -663,3 +663,4 @@ buck-out/
 .fakebuckversion
 
 # End of https://www.toptal.com/developers/gitignore/api/csharp,react,reactnative**/Properties/launchSettings.json
+api/Properties/launchSettings.json

@@ -9,19 +9,11 @@ namespace api.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<User> b)
         {
-            // string <-> uniqueidentifier
-            var guidStringConverter = new ValueConverter<string, Guid>(
-                toProvider => Guid.Parse(toProvider),
-                fromProvider => fromProvider.ToString()
-            );
-
             b.ToTable("T_USER");
 
             b.HasKey(x => x.Id);
 
             b.Property(x => x.Id)
-                .HasConversion(guidStringConverter)
-                .HasColumnType("uniqueidentifier")
                 .HasColumnName("id")
                 .HasColumnOrder(1)
                 .HasDefaultValueSql("NEWID()")
@@ -64,8 +56,6 @@ namespace api.Data.Configurations
                 .IsRequired();
 
             b.Property(x => x.RefRole)
-                .HasConversion(guidStringConverter)
-                .HasColumnType("uniqueidentifier")
                 .HasColumnName("refRole")
                 .HasColumnOrder(8)
                 .IsRequired();
@@ -77,7 +67,6 @@ namespace api.Data.Configurations
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 
             b.Property(x => x.TokenAccountCreated)
-                .HasColumnType("uniqueidentifier")
                 .HasColumnName("tokenAccountCreated")
                 .HasColumnOrder(10);
 

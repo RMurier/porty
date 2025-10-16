@@ -3,6 +3,22 @@
   "WorkspaceRootPath": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\properties\\launchsettings.example.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:properties\\launchsettings.example.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\api.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:api.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\data\\portydbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:data\\portydbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -17,10 +33,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|c:\\users\\utilisateur\\source\\repos\\porty\\api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{7BC8D0A0-77C6-4A34-9F71-F88F5BB00E65}|api.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -30,7 +42,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 8,
           "Children": [
             {
               "$type": "Bookmark",
@@ -38,20 +50,58 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "PortyDbContext.cs",
-              "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\PortyDbContext.cs",
-              "RelativeDocumentMoniker": "Data\\PortyDbContext.cs",
-              "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\PortyDbContext.cs*",
-              "RelativeToolTip": "Data\\PortyDbContext.cs*",
-              "ViewState": "AgIAACoAAAAAAAAAAAAwwC4AAAAHAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-08T20:36:02.682Z",
+              "DocumentIndex": 1,
+              "Title": "launchSettings.json",
+              "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Properties\\launchSettings.json",
+              "RelativeDocumentMoniker": "Properties\\launchSettings.json",
+              "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Properties\\launchSettings.json",
+              "RelativeToolTip": "Properties\\launchSettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAbAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-16T21:49:33.441Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
+              "Title": "launchSettings.example.json",
+              "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Properties\\launchSettings.example.json",
+              "RelativeDocumentMoniker": "Properties\\launchSettings.example.json",
+              "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Properties\\launchSettings.example.json",
+              "RelativeToolTip": "Properties\\launchSettings.example.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAbAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-16T21:49:28.41Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "api.csproj",
+              "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\api.csproj",
+              "RelativeDocumentMoniker": "api.csproj",
+              "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\api.csproj",
+              "RelativeToolTip": "api.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-12T18:12:45.316Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "PortyDbContext.cs",
+              "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\PortyDbContext.cs",
+              "RelativeDocumentMoniker": "Data\\PortyDbContext.cs",
+              "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\PortyDbContext.cs",
+              "RelativeToolTip": "Data\\PortyDbContext.cs",
+              "ViewState": "AgIAACoAAAAAAAAAAAAwwC4AAAAHAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-08T20:36:02.682Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "User.cs",
               "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\Models\\User.cs",
               "RelativeDocumentMoniker": "Data\\Models\\User.cs",
@@ -59,12 +109,11 @@
               "RelativeToolTip": "Data\\Models\\User.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAxAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-08T20:35:36.54Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-08T20:35:36.54Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 6,
               "Title": "Role.cs",
               "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Data\\Models\\Role.cs",
               "RelativeDocumentMoniker": "Data\\Models\\Role.cs",
@@ -72,12 +121,11 @@
               "RelativeToolTip": "Data\\Models\\Role.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAjAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-08T20:35:16.696Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-08T20:35:16.696Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 7,
               "Title": "appsettings.json",
               "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\appsettings.json",
               "RelativeDocumentMoniker": "appsettings.json",
@@ -85,18 +133,17 @@
               "RelativeToolTip": "appsettings.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAABTAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-10-08T20:33:13.798Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-08T20:33:13.798Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 0,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Program.cs",
               "RelativeDocumentMoniker": "Program.cs",
               "ToolTip": "C:\\Users\\Utilisateur\\source\\repos\\porty\\api\\Program.cs",
               "RelativeToolTip": "Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAABIAAAAAAAAAAAApwBUAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-08T20:28:09.062Z",
               "EditorCaption": ""

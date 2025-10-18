@@ -15,7 +15,7 @@ namespace api.Services
         public async Task SendEmail(string to, string subject, string body)
         {
             IConfigurationSection SMTPConfig = _config.GetSection("SMTP");
-            MailAddress fromAddress = new MailAddress("noreply@epica-backlog.com", "Epica");
+            MailAddress fromAddress = new MailAddress(SMTPConfig["MailAdress"], "Romain MURIER");
             MailAddress toAddress = new MailAddress(to);
             string fromPassword = SMTPConfig["Password"];
 
@@ -36,7 +36,7 @@ namespace api.Services
                 Body = body
             })
             {
-                message.Headers.Add("List-Unsubscribe", "<mailto:noreply@epica-backlog.com?subject=unsubscribe>");
+                message.Headers.Add("List-Unsubscribe", "<mailto:" + SMTPConfig["MailAdress"] + "?subject=unsubscribe>");
                 smtp.Send(message);
             }
         }

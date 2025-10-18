@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var cs = builder.Configuration.GetConnectionString("DefaultConnection")
+var cs = builder.Configuration["DefaultConnection"]
          ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante dans appsettings.json");
 
 builder.Services.AddDbContext<PortyDbContext>(options =>
@@ -16,6 +16,8 @@ builder.Services.AddDbContext<PortyDbContext>(options =>
 });
 
 //Services
+builder.Services.AddScoped<IBuisness, BuisnessService>();
+builder.Services.AddScoped<ICareer, CareerService>();
 builder.Services.AddScoped<IMail, MailService>();
 
 builder.Services.AddControllers();

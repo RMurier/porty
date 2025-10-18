@@ -664,3 +664,5 @@ buck-out/
 
 # End of https://www.toptal.com/developers/gitignore/api/csharp,react,reactnative**/Properties/launchSettings.json
 api/Properties/launchSettings.json
+docker-compose.yml
+docker-compose.dev.yml

@@ -18,6 +18,7 @@ builder.Services.AddDbContext<PortyDbContext>(options =>
 //Services
 builder.Services.AddScoped<IBuisness, BuisnessService>();
 builder.Services.AddScoped<ICareer, CareerService>();
+builder.Services.AddScoped<ICategory, CategoryService>();
 builder.Services.AddScoped<IMail, MailService>();
 
 builder.Services.AddControllers();

@@ -1,4 +1,6 @@
 using api.Data;
+using api.Interfaces;
+using api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,9 @@ builder.Services.AddDbContext<PortyDbContext>(options =>
     options.EnableDetailedErrors();
     options.EnableSensitiveDataLogging();
 });
+
+//Services
+builder.Services.AddScoped<IMail, MailService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

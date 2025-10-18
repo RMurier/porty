@@ -9,7 +9,14 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5247",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DefaultConnection": "Server=xxxxx;Database=xxxx;User Id=xxxx;Password=xxxx;TrustServerCertificate=True;MultipleActiveResultSets=True",
+        "SMTP": {
+          "Password": "",
+          "Hors": "",
+          "Port": "",
+          "MailAdress": ""
+        }
       }
     }
   }

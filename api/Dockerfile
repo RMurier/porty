@@ -19,4 +19,4 @@ EXPOSE 8080
 COPY --from=build /app/publish ./
 
 # 👉 Ici on lance le DLL, pas un binaire natif
-ENTRYPOINT ["dotnet", "app.dll"]
+ENTRYPOINT ["dotnet", "api.dll"]

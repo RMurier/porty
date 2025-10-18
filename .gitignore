@@ -666,3 +666,5 @@ buck-out/
 api/Properties/launchSettings.json
 docker-compose.yml
 docker-compose.dev.yml
+front/.env
+/api/appsettings.json

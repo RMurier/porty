@@ -22,7 +22,7 @@ namespace api.Controllers
         {
             try
             {
-                List<Career> buisness = await _buisness.GetAllBuisnesses();
+                List<Career> buisness = await _career.GetAllCareers();
                 if(buisness.Count == 0)
                 {
                     return NoContent();

@@ -1,3 +1,4 @@
+name: porty-dev
 version: "3.9"
 
 services:
@@ -5,62 +6,67 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: porty-sql-dev
     environment:
-      SA_PASSWORD: "mdp_SA_ssms_dev"
+      SA_PASSWORD: "[SA_PASSWORD]"
       ACCEPT_EULA: "Y"
     ports:
-      - "1433:1433"
+      - "1434:1433"
     volumes:
       - sql_data_dev:/var/opt/mssql
     networks:
-      - web
+      - web-dev
     restart: always
 
   api:
     image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: porty-api-dev
     working_dir: /src
     volumes:
       - ./api:/src
-      - api_bin:/src/bin
-      - api_obj:/src/obj
-      - dotnet_nuget:/root/.nuget/packages
+      - api_bin_dev:/src/bin
+      - api_obj_dev:/src/obj
+      - dotnet_nuget_dev:/root/.nuget/packages
+      - ~/.aspnet/https:/https:ro
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ASPNETCORE_URLS: "http://0.0.0.0:8080"
-      DOTNET_USE_POLLING_FILE_WATCHER: "true"
-      ConnectionStrings__DefaultConnection: "Server=db;Database=Porty;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      ASPNETCORE_URLS: "https://0.0.0.0:9090;http://0.0.0.0:9091"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "devcert"
+      ConnectionStrings__DefaultConnection: "Server=db;Database=[DB_SERVER];User Id=[DB_USER];Password=[DB_PASSWORD];TrustServerCertificate=True;MultipleActiveResultSets=True"
     depends_on:
       - db
     ports:
-      - "8080:8080"
+      - "9090:9090"
+      - "9091:9091"
     command: ["dotnet", "watch", "run", "--non-interactive"]
     networks:
-      - web
+      - web-dev
 
   front:
     image: node:20-alpine
+    container_name: porty-front-dev
     working_dir: /app
     volumes:
       - ./front:/app
-      - front_node:/app/node_modules
+      - front_node_dev:/app/node_modules
     environment:
       HOST: "0.0.0.0"
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
-      VITE_API_URL: "http://localhost:8080"
+      VITE_API_URL: "https://localhost:9091"
     ports:
-      - "5173:5173"
-    command: sh -c "npm i && npm run dev -- --host 0.0.0.0 --port 5173"
+      - "5174:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     depends_on:
       - api
     networks:
-      - web
+      - web-dev
 
 networks:
-  web:
+  web-dev:
 
 volumes:
   sql_data_dev:
-  api_bin:
-  api_obj:
-  dotnet_nuget:
-  front_node:
+  api_bin_dev:
+  api_obj_dev:
+  dotnet_nuget_dev:
+  front_node_dev:

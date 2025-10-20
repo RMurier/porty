@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var cs = builder.Configuration["DefaultConnection"]
-         ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante dans appsettings.json");
+var cs = builder.Configuration.GetConnectionString("DefaultConnection")
+         ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante dans configuration");
+
 
 builder.Services.AddDbContext<PortyDbContext>(options =>
 {

@@ -668,3 +668,4 @@ docker-compose.yml
 docker-compose.dev.yml
 front/.env
 /api/appsettings.json
+package-lock.json

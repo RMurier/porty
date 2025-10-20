@@ -13,7 +13,7 @@ namespace api.Services
             _ctx = ctx;
         }
 
-        public async Task<List<Career>?> GetAllBuisnesses()
+        public async Task<List<Career>?> GetAllCareers()
         {
             return await _ctx.Careers.ToListAsync();
         }

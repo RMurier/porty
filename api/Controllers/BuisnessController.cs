@@ -22,8 +22,8 @@ namespace api.Controllers
         {
             try
             {
-                List<Buisness> buisness = await _buisness.GetAllBuisnesses();
-                if(buisness.Count == 0)
+                List<Buisness>? buisness = await _buisness.GetAllBuisnesses();
+                if(buisness == null || buisness.Count == 0)
                 {
                     return NoContent();
                 }

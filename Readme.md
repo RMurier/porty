@@ -86,7 +86,7 @@ openssl pkcs12 -in ~/.aspnet/https/aspnetapp.pfx -nocerts -out ~/.aspnet/https/c
 docker compose -f docker-compose.dev.yml up --build
 ```
 - **API (HTTPS)**: https://localhost:9090/swagger
-- **Front (Vite dev)**: http://localhost:5174
+- **Front (Vite dev)**: https://localhost:5174
 - **SQL**: host `localhost`, port **1434**
 
 Stop:
@@ -166,7 +166,7 @@ If the dev front (5174) is blocked by CORS, add in `Program.cs` your URL:
 var cors = "_cors";
 builder.Services.AddCors(o => o.AddPolicy(cors, p =>
 {
-    p.WithOrigins("http://localhost:5174", "https://localhost")
+    p.WithOrigins("https://localhost:5174", "https://localhost")
      .AllowAnyHeader()
      .AllowAnyMethod();
 }));

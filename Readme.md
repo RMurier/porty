@@ -10,7 +10,8 @@ A full-stack project with an **ASP.NET Core (.NET 8) API** and a **Vite (Node 20
 ## Stack
 
 - **API**: ASP.NET Core (.NET 8) — `api/`
-- **Front**: Vite (Node 20) — `front/`
+- **Front**: Vite (Node 20) / React (v19) — `front/`
+- **Style**: CSS / TailWind (v4) / Framer Motion / Lucide React
 - **DB**: SQL Server 2022 (container)
 - **Orchestration**: Docker Compose
 - **TLS**: Dev certificate mounted into containers
@@ -84,8 +85,8 @@ openssl pkcs12 -in ~/.aspnet/https/aspnetapp.pfx -nocerts -out ~/.aspnet/https/c
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
-- **API (HTTPS)**: https://localhost:9091  
-- **Front (Vite dev)**: http://localhost:5174  
+- **API (HTTPS)**: https://localhost:9090/swagger
+- **Front (Vite dev)**: http://localhost:5174
 - **SQL**: host `localhost`, port **1434**
 
 Stop:
@@ -105,26 +106,13 @@ docker compose -f docker-compose.dev.yml down
 docker compose up --build
 ```
 - **Front (HTTPS)**: https://localhost  
-- **API (HTTPS)**: https://localhost:8080  
+- **API (HTTPS)**: https://localhost:8080  (no swagger)
 - **SQL**: host `localhost`, port **1435**
 
 Stop:
 ```bash
 docker compose down
 ```
-
-> Tip: you can name the stack for clarity in Docker Desktop:
-> ```bash
-> docker compose -p porty-prod up --build
-> ```
-
----
-
-## Useful URLs
-
-- **API – Swagger**: `https://localhost:8080/swagger`  
-  If you get a 404, see **Swagger in Production** below.
-- **Front**: `https://localhost` (prod compose) • `http://localhost:5174` (dev)
 
 ---
 
@@ -170,34 +158,9 @@ docker exec -it porty-api-prod dotnet ef database update --project /app --startu
 
 ---
 
-## Swagger in Production
-
-If `/swagger` returns 404, enable Swagger explicitly in `Program.cs`:
-
-```csharp
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Porty API v1");
-    c.RoutePrefix = "swagger";
-});
-```
-
-> Optional: gate it with an env var:
-> ```csharp
-> if (app.Environment.IsDevelopment() || app.Configuration["ENABLE_SWAGGER"] == "true")
-> {
->     app.UseSwagger();
->     app.UseSwaggerUI();
-> }
-> ```
-> and in Compose: `ENABLE_SWAGGER: "true"`
-
----
-
 ## CORS (front ↔ API)
 
-If the dev front (5174) is blocked by CORS, add in `Program.cs`:
+If the dev front (5174) is blocked by CORS, add in `Program.cs` your URL:
 
 ```csharp
 var cors = "_cors";
@@ -224,42 +187,7 @@ app.UseCors(cors);
   Inside Docker, use `Server=db;...` (service name), not `localhost`.
 
 - **`ConnectionStrings:DefaultConnection` missing when running `dotnet ef`**  
-  Export the env var before the command (see EF section).
-
-- **404 on `/swagger`**  
-  Enable Swagger in production (see above).
+  Export the env var before the command.
 
 - **Ports not reachable**  
   Ensure `ASPNETCORE_URLS` (internal listen port) matches the Compose `ports:` mapping.
-
----
-
-## Handy commands
-
-```bash
-# Show mapped ports
-docker ps
-
-# Tail container logs
-docker logs -f porty-api-dev
-docker logs -f porty-api-prod
-
-# Check the connection string env inside the container
-docker exec -it porty-api-prod printenv | grep ConnectionStrings
-```
-
----
-
-## License
-
-Add your preferred license (e.g., MIT).
-
----
-
-## Support
-
-Open an issue and include:
-- the Compose file you used (dev/prod),
-- the exact command you ran,
-- relevant logs (API/front/DB),
-- your OS and Docker version.

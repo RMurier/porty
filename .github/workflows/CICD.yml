@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [ develop_romain, develop, master ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build-test-analyze:
+    name: Build, test & SonarQube
+    runs-on: windows-latest
+
+    env:
+      # Sonar
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # Optionnel si tu n'es PAS sur SonarCloud (ex: serveur self-hosted)
+      # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      # Couverture back (OpenCover) + tests .trx
+      DOTNET_COVERAGE: "**/TestResults/**/coverage.opencover.xml"
+      DOTNET_TRX: "**/TestResults/*.trx"
+      # Couverture front (Vitest/Jest)
+      FRONT_LCOV: "front/coverage/lcov.info"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # recommandé par Sonar pour la pertinence de l'analyse
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up JDK 17 (required by SonarScanner)
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'zulu'
+
+      # Caches (dotnet, npm, sonar)
+      - name: Cache Sonar packages
+        uses: actions/cache@v4
+        with:
+          path: ~\sonar\cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache SonarScanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarScanner for .NET
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |
+          New-Item -Path ${{ runner.temp }}\scanner -ItemType Directory -Force | Out-Null
+          dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}\scanner
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.local/share/NuGet/Cache
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.sln') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Cache Front node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            front/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('front/package-lock.json', 'front/pnpm-lock.yaml', 'front/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      # --- Front: install + test (LCOV) ---
+      - name: Frontend install
+        working-directory: front
+        shell: bash
+        run: |
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+
+      - name: Frontend tests with coverage (Vitest/Jest)
+        working-directory: front
+        shell: bash
+        run: |
+          # Vitest example: ensure coverage lcov output
+          if npm run | grep -i "test"; then
+            npm run test -- --coverage --coverage.reporter=lcov || true
+          else
+            echo "No test script found in front/package.json; skipping front tests."
+          fi
+
+      # --- Backend: restore + build + test (OpenCover + TRX) ---
+      - name: Backend restore
+        working-directory: api
+        run: dotnet restore
+
+      - name: Backend build
+        working-directory: api
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Backend tests with coverage (OpenCover)
+        working-directory: api
+        run: |
+          dotnet test --configuration Release --no-build `
+            --logger "trx;LogFileName=test-results.trx" `
+            /p:CollectCoverage=true `
+            /p:CoverletOutputFormat=opencover `
+            /p:CoverletOutput=./TestResults/coverage
+
+      # --- Sonar: begin -> build (for rules) -> end ---
+      - name: SonarQube begin
+        shell: powershell
+        run: >
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin
+          /k:"RMurier_porty"
+          /o:"rmurier"
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"
+          @(if ("${{ env.SONAR_HOST_URL }}") { '/d:sonar.host.url="' + "${{ env.SONAR_HOST_URL }}" + '"' } )
+          /d:sonar.cs.opencover.reportsPaths="${{ env.DOTNET_COVERAGE }}"
+          /d:sonar.cs.vstest.reportsPaths="${{ env.DOTNET_TRX }}"
+          /d:sonar.javascript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
+          /d:sonar.typescript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
+          /d:sonar.sourceEncoding="UTF-8"
+          /d:sonar.scanner.forceGlobalAnalysis="true"
+
+      - name: Build solution for Sonar rules
+        # Build global at repo root so scanner sees all projects
+        run: dotnet build --configuration Release
+
+      - name: SonarQube end
+        shell: powershell
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"

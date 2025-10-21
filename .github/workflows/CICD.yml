@@ -112,6 +112,8 @@ jobs:
             /p:CoverletOutputFormat=opencover `
             /p:CoverletOutput=./TestResults/coverage
 
+            # ---- Sonar BEGIN (run in api/) ----
+      # ---- Sonar BEGIN (run at repo root) ----
       - name: SonarQube begin
         shell: powershell
         run: >
@@ -127,13 +129,41 @@ jobs:
           /d:sonar.sourceEncoding="UTF-8"
           /d:sonar.scanner.forceGlobalAnalysis="true"
 
-      - name: Build solution for Sonar rules
-        working-directory: api
-        run: dotnet build --configuration Release --no-restore
+      # ---- Build & Test API with coverage (run at repo root) ----
+      # Prefer building a solution; if none exists, build the first csproj under api/
+      - name: Build & Test .NET (auto-detect sln or csproj)
+        shell: powershell
+        run: |
+          Write-Host "Working dir:" (Get-Location)
+          $sln = Get-ChildItem -Recurse -Filter *.sln | Select-Object -First 1
+          if ($sln) {
+            Write-Host "Found solution:" $sln.FullName
+            dotnet restore $sln.FullName
+            dotnet build $sln.FullName --configuration Release --no-restore
+            dotnet test  $sln.FullName --configuration Release --no-build `
+              --logger "trx;LogFileName=test-results.trx" `
+              /p:CollectCoverage=true `
+              /p:CoverletOutputFormat=opencover `
+              /p:CoverletOutput=./api/TestResults/coverage
+          }
+          else {
+            $csproj = Get-ChildItem -Recurse -Path api -Filter *.csproj | Select-Object -First 1
+            if (-not $csproj) { throw "No .sln and no .csproj found under 'api'." }
+            Write-Host "No solution found; building project:" $csproj.FullName
+            dotnet restore $csproj.FullName
+            dotnet build   $csproj.FullName --configuration Release --no-restore
+            dotnet test    $csproj.FullName --configuration Release --no-build `
+              --logger "trx;LogFileName=test-results.trx" `
+              /p:CollectCoverage=true `
+              /p:CoverletOutputFormat=opencover `
+              /p:CoverletOutput=./api/TestResults/coverage
+          }
 
-
+      # ---- Sonar END (same folder as begin) ----
       - name: SonarQube end
         shell: powershell
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"
+        run: >
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner end
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"

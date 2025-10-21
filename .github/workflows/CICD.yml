@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ develop_romain, develop, master ]
+    branches: '**'
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -12,21 +12,16 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # Sonar
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      # Optionnel si tu n'es PAS sur SonarCloud (ex: serveur self-hosted)
-      # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      # Couverture back (OpenCover) + tests .trx
       DOTNET_COVERAGE: "**/TestResults/**/coverage.opencover.xml"
       DOTNET_TRX: "**/TestResults/*.trx"
-      # Couverture front (Vitest/Jest)
       FRONT_LCOV: "front/coverage/lcov.info"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # recommandé par Sonar pour la pertinence de l'analyse
+          fetch-depth: 0
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -44,7 +39,6 @@ jobs:
           java-version: 17
           distribution: 'zulu'
 
-      # Caches (dotnet, npm, sonar)
       - name: Cache Sonar packages
         uses: actions/cache@v4
         with:
@@ -84,7 +78,6 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('front/package-lock.json', 'front/pnpm-lock.yaml', 'front/yarn.lock') }}
           restore-keys: ${{ runner.os }}-node-
 
-      # --- Front: install + test (LCOV) ---
       - name: Frontend install
         working-directory: front
         shell: bash
@@ -102,7 +95,6 @@ jobs:
             echo "No test script found in front/package.json; skipping front tests."
           fi
 
-      # --- Backend: restore + build + test (OpenCover + TRX) ---
       - name: Backend restore
         working-directory: api
         run: dotnet restore
@@ -120,7 +112,6 @@ jobs:
             /p:CoverletOutputFormat=opencover `
             /p:CoverletOutput=./TestResults/coverage
 
-      # --- Sonar: begin -> build (for rules) -> end ---
       - name: SonarQube begin
         shell: powershell
         run: >
@@ -137,7 +128,6 @@ jobs:
           /d:sonar.scanner.forceGlobalAnalysis="true"
 
       - name: Build solution for Sonar rules
-        # Build global at repo root so scanner sees all projects
         run: dotnet build --configuration Release
 
       - name: SonarQube end

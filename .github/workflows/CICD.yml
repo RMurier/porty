@@ -128,7 +128,9 @@ jobs:
           /d:sonar.scanner.forceGlobalAnalysis="true"
 
       - name: Build solution for Sonar rules
-        run: dotnet build --configuration Release
+        working-directory: api
+        run: dotnet build --configuration Release --no-restore
+
 
       - name: SonarQube end
         shell: powershell

@@ -17,7 +17,7 @@ env:
 
 jobs:
   # ------------------------------------------------------------
-  # 1️⃣ ANALYSE, BUILD, TEST & SONARQUBE (TOUTES BRANCHES)
+  # 1️⃣ ANALYSE, BUILD, TEST & SONARCLOUD
   # ------------------------------------------------------------
   analyze:
     name: 🧪 Build & SonarCloud Scan
@@ -121,7 +121,7 @@ jobs:
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
   # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH IMAGE DOCKER (SEULEMENT develop/master)
+  # 2️⃣ BUILD & PUSH IMAGE DOCKER (develop/master SEULEMENT)
   # ------------------------------------------------------------
   docker:
     name: 🐳 Build & Push Docker Image
@@ -135,36 +135,28 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Select compose file
-        id: compose
+      # 🧱 On recrée les fichiers docker-compose à partir des secrets
+      - name: Recreate docker-compose from secrets
         run: |
           if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.yml
             echo "file=docker-compose.yml" >> $GITHUB_OUTPUT
           else
+            echo "${{ secrets.DOCKER_COMPOSE_DEV }}" > docker-compose.dev.yml
             echo "file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check compose file exists
+      - name: Verify compose file
         run: |
-          if [ ! -f "${{ steps.compose.outputs.file }}" ]; then
-            echo "❌ Fichier docker-compose introuvable : ${{ steps.compose.outputs.file }}"
-            echo "Voici le contenu du dossier courant :"
-            ls -R .
-            exit 1
-          fi
-
-      - name: Recreate docker-compose files from secrets
-        run: |
-            if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.yml
-            else
-            echo "${{ secrets.DOCKER_COMPOSE_DEV }}" > docker-compose.dev.yml
-            fi
-
+          echo "✅ Fichier docker-compose utilisé :"
+          ls -l docker-compose*.yml
+          echo ""
+          echo "Contenu :"
+          head -n 20 docker-compose*.yml
 
       - name: Build image
         run: |
-          docker compose -f "${{ steps.compose.outputs.file }}" build
+          docker compose -f docker-compose.yml build 2>/dev/null || docker compose -f docker-compose.dev.yml build
           docker tag porty:latest ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
@@ -172,7 +164,7 @@ jobs:
         run: echo "image=ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_ENV
 
   # ------------------------------------------------------------
-  # 3️⃣ DEPLOY TO K3S (SEULEMENT develop/master)
+  # 3️⃣ DEPLOY TO K3S (develop/master SEULEMENT)
   # ------------------------------------------------------------
   deploy:
     name: 🚀 Deploy to K3S

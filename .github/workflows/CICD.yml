@@ -1,0 +1,198 @@
+name: CI/CD Porty
+
+on:
+  push:
+    branches: ['**'] # analyse sur toutes les branches
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  APP_NAME: porty
+  CONTAINER_PORT: "8080"
+  HEALTH_PATH: "/healthz"
+  PROD_HOST: "murierromain.com"
+  STAGING_HOST: "test.murierromain.com"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: rmurier/porty
+
+jobs:
+  # ------------------------------------------------------------
+  # 1️⃣ ANALYSE, BUILD, TEST & SONARQUBE (TOUTES BRANCHES)
+  # ------------------------------------------------------------
+  analyze:
+    name: 🧪 Build & SonarCloud Scan
+    runs-on: windows-latest
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      DOTNET_COVERAGE: "**/TestResults/**/coverage.opencover.xml"
+      DOTNET_TRX: "**/TestResults/*.trx"
+      FRONT_LCOV: "front/coverage/lcov.info"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up JDK 17 (Sonar)
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'zulu'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.local/share/NuGet/Cache
+            front/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('**/*.csproj', 'front/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-
+
+      - name: Install SonarScanner for .NET
+        run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
+
+      - name: Install frontend deps
+        working-directory: front
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: front
+        run: npm run test -- --coverage --coverage.reporter=lcov || echo "no tests"
+
+      - name: SonarCloud begin
+        shell: pwsh
+        run: >
+          ${{ runner.temp }}/scanner/dotnet-sonarscanner begin
+          /k:"RMurier_porty"
+          /o:"rmurier"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"
+          /d:sonar.cs.opencover.reportsPaths="${{ env.DOTNET_COVERAGE }}"
+          /d:sonar.cs.vstest.reportsPaths="${{ env.DOTNET_TRX }}"
+          /d:sonar.javascript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
+          /d:sonar.typescript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
+          /d:sonar.sourceEncoding="UTF-8"
+
+      - name: Build & Test backend
+        shell: pwsh
+        run: |
+          $sln = Get-ChildItem -Recurse -Filter *.sln | Select-Object -First 1
+          if ($sln) {
+            dotnet restore $sln.FullName
+            dotnet build $sln.FullName --configuration Release
+            dotnet test  $sln.FullName --configuration Release --no-build `
+              --logger "trx;LogFileName=test-results.trx" `
+              /p:CollectCoverage=true `
+              /p:CoverletOutputFormat=opencover `
+              /p:CoverletOutput=./api/TestResults/coverage
+          } else {
+            $proj = Get-ChildItem -Recurse -Path api -Filter *.csproj | Select-Object -First 1
+            dotnet restore $proj.FullName
+            dotnet build   $proj.FullName --configuration Release
+            dotnet test    $proj.FullName --configuration Release --no-build `
+              --logger "trx;LogFileName=test-results.trx" `
+              /p:CollectCoverage=true `
+              /p:CoverletOutputFormat=opencover `
+              /p:CoverletOutput=./api/TestResults/coverage
+          }
+
+      - name: SonarCloud end
+        shell: pwsh
+        run: >
+          ${{ runner.temp }}/scanner/dotnet-sonarscanner end
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"
+
+  # ------------------------------------------------------------
+  # 2️⃣ BUILD & PUSH IMAGE DOCKER (SEULEMENT develop/master)
+  # ------------------------------------------------------------
+  docker:
+    name: 🐳 Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: github.ref_name == 'develop' || github.ref_name == 'master'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Select compose file
+        id: compose
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            echo "file=docker-compose.yml" >> $GITHUB_OUTPUT
+          else
+            echo "file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build image
+        run: |
+          docker compose -f "${{ steps.compose.outputs.file }}" build
+          docker tag porty:latest ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Save image ref
+        run: echo "image=ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_ENV
+
+  # ------------------------------------------------------------
+  # 3️⃣ DEPLOY TO K3S (SEULEMENT develop/master)
+  # ------------------------------------------------------------
+  deploy:
+    name: 🚀 Deploy to K3S
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref_name == 'develop' || github.ref_name == 'master'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl version --client
+
+      - name: Create namespaces if missing
+        run: |
+          kubectl apply -f k8s/namespace-prod.yaml
+          kubectl apply -f k8s/namespace-staging.yaml
+
+      - name: Select namespace
+        id: envsel
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            echo "namespace=production" >> $GITHUB_OUTPUT
+            echo "host=${{ env.PROD_HOST }}" >> $GITHUB_OUTPUT
+          else
+            echo "namespace=staging" >> $GITHUB_OUTPUT
+            echo "host=${{ env.STAGING_HOST }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply manifests
+        run: |
+          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/service.yaml
+          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/deployment.yaml
+          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/ingress.yaml
+
+      - name: Update image (rolling update)
+        run: |
+          kubectl -n ${{ steps.envsel.outputs.namespace }} set image deployment/${{ env.APP_NAME }} \
+            ${{ env.APP_NAME }}=${{ env.image }} --record
+          kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deployment/${{ env.APP_NAME }} --timeout=180s

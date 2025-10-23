@@ -135,16 +135,21 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # 🧱 On recrée les fichiers docker-compose à partir des secrets
       - name: Recreate docker-compose from secrets
+        shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.yml
+            if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            printf '%s\n' "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.yml
             echo "file=docker-compose.yml" >> $GITHUB_OUTPUT
-          else
-            echo "${{ secrets.DOCKER_COMPOSE_DEV }}" > docker-compose.dev.yml
+            else
+            printf '%s\n' "${{ secrets.DOCKER_COMPOSE_DEV }}" > docker-compose.dev.yml
             echo "file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
-          fi
+            fi
+
+            echo "✅ docker-compose recréé avec succès :"
+            ls -lh docker-compose*.yml
+            head -n 5 docker-compose*.yml
+
 
       - name: Verify compose file
         run: |

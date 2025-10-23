@@ -70,7 +70,12 @@ jobs:
 
       - name: Frontend tests
         working-directory: front
-        run: npm run test -- --coverage --coverage.reporter=lcov || echo "no tests"
+       run: |
+        if npm run | grep -q "test"; then
+        npm run test -- --coverage --coverage.reporter=lcov
+        else
+        echo "⚠️ Aucun test défini, étape ignorée."
+        fi
 
       - name: SonarCloud begin
         shell: pwsh

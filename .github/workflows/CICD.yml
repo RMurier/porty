@@ -153,6 +153,15 @@ jobs:
             exit 1
           fi
 
+      - name: Recreate docker-compose files from secrets
+        run: |
+            if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.yml
+            else
+            echo "${{ secrets.DOCKER_COMPOSE_DEV }}" > docker-compose.dev.yml
+            fi
+
+
       - name: Build image
         run: |
           docker compose -f "${{ steps.compose.outputs.file }}" build

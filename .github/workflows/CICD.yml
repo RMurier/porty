@@ -160,11 +160,18 @@ jobs:
           echo "Contenu :"
           head -n 20 docker-compose*.yml
 
-      - name: Build image
+      - name: Build and push image
         run: |
-          docker compose -f docker-compose.yml build 2>/dev/null || docker compose -f docker-compose.dev.yml build
-          docker tag porty:latest ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            # Sélection du fichier Compose
+            FILE="docker-compose.yml"
+            [ "${GITHUB_REF_NAME}" != "master" ] && FILE="docker-compose.dev.yml"
+
+            # Build direct avec tag complet (évite l'erreur "no such image")
+            docker build -t ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} -f $(grep -E 'build:|Dockerfile' -m 1 $FILE | sed 's/.* //') .
+
+            # Push vers GHCR
+            docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
 
       - name: Save image ref
         run: echo "image=ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_ENV

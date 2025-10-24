@@ -17,9 +17,6 @@ env:
   IMAGE_NAME: rmurier/porty
 
 jobs:
-  # ------------------------------------------------------------
-  # 1️⃣ ANALYSE, BUILD, TEST & SONARCLOUD
-  # ------------------------------------------------------------
   analyze:
     name: 🧪 Build & SonarCloud Scan
     runs-on: windows-latest
@@ -30,42 +27,26 @@ jobs:
       FRONT_LCOV: "front/coverage/lcov.info"
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
 
-      - name: Set up JDK 17 (Sonar)
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'zulu'
+          distribution: "zulu"
 
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.nuget/packages
-            ~/.local/share/NuGet/Cache
-            front/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('**/*.csproj', 'front/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-
+      - run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
 
-      - name: Install SonarScanner for .NET
-        run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
-
-      - name: Install frontend deps
-        working-directory: front
+      - working-directory: front
         run: npm ci
 
       - name: Frontend tests
@@ -86,34 +67,14 @@ jobs:
           /o:"rmurier"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
-          /d:sonar.cs.opencover.reportsPaths="${{ env.DOTNET_COVERAGE }}"
-          /d:sonar.cs.vstest.reportsPaths="${{ env.DOTNET_TRX }}"
-          /d:sonar.javascript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
-          /d:sonar.typescript.lcov.reportPaths="${{ env.FRONT_LCOV }}"
           /d:sonar.sourceEncoding="UTF-8"
 
       - name: Build & Test backend
-        shell: pwsh
+        working-directory: api
         run: |
-          $sln = Get-ChildItem -Recurse -Filter *.sln | Select-Object -First 1
-          if ($sln) {
-            dotnet restore $sln.FullName
-            dotnet build $sln.FullName --configuration Release
-            dotnet test  $sln.FullName --configuration Release --no-build `
-              --logger "trx;LogFileName=test-results.trx" `
-              /p:CollectCoverage=true `
-              /p:CoverletOutputFormat=opencover `
-              /p:CoverletOutput=./api/TestResults/coverage
-          } else {
-            $proj = Get-ChildItem -Recurse -Path api -Filter *.csproj | Select-Object -First 1
-            dotnet restore $proj.FullName
-            dotnet build   $proj.FullName --configuration Release
-            dotnet test    $proj.FullName --configuration Release --no-build `
-              --logger "trx;LogFileName=test-results.trx" `
-              /p:CollectCoverage=true `
-              /p:CoverletOutputFormat=opencover `
-              /p:CoverletOutput=./api/TestResults/coverage
-          }
+          dotnet restore
+          dotnet build -c Release
+          dotnet test -c Release --no-build
 
       - name: SonarCloud end
         shell: pwsh
@@ -121,22 +82,17 @@ jobs:
           ${{ runner.temp }}/scanner/dotnet-sonarscanner end
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
-  # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH IMAGE DOCKER (develop/master SEULEMENT)
-  # ------------------------------------------------------------
   docker:
-    name: 🐳 Build & Push Docker Image
+    name: 🐳 Push Compose Images
     runs-on: ubuntu-latest
     if: github.ref_name == 'develop' || github.ref_name == 'master'
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Recreate docker-compose from base64 secrets
+      - name: Recreate docker-compose from secrets
         id: compose
         shell: bash
         run: |
@@ -147,51 +103,27 @@ jobs:
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > docker-compose.dev.yml
             echo "compose_file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
           fi
-
-          echo "✅ docker-compose recréé :"
           ls -lh docker-compose*.yml
-          head -n 5 docker-compose*.yml
 
-      - name: Prepare build environment
+      - name: Push base image as GHCR tag
         shell: bash
         run: |
-          mkdir -p ~/.aspnet/https
-          touch ~/.aspnet/https/cert.crt ~/.aspnet/https/cert.key
-          sed -i '/\.aspnet\/https/d' docker-compose*.yml
-          echo "✅ HTTPS mount neutralisé pour GitHub Actions"
-
-      - name: Build and push API image
-        shell: bash
-        run: |
-          FILE="${{ steps.compose.outputs.compose_file }}"
-          SERVICE="${{ env.MAIN_SERVICE }}"
-          IMAGE_NAME="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-
-          echo "🚧 Build du service '$SERVICE' à partir de $FILE"
-          docker compose -f "$FILE" build "$SERVICE"
-
-          LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "${SERVICE}:latest" | head -n 1)
-          echo "🔖 Tag $LOCAL_IMAGE → $IMAGE_NAME"
-          docker tag "$LOCAL_IMAGE" "$IMAGE_NAME"
-
-          echo "🚀 Push vers GHCR"
-          docker push "$IMAGE_NAME"
+          IMAGE="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "⚙️ Tagging base image → $IMAGE"
+          docker pull mcr.microsoft.com/dotnet/sdk:8.0
+          docker tag mcr.microsoft.com/dotnet/sdk:8.0 "$IMAGE"
+          docker push "$IMAGE"
 
       - name: Save image ref
         run: echo "image=ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_ENV
 
-  # ------------------------------------------------------------
-  # 3️⃣ DEPLOY TO K3S (develop/master SEULEMENT)
-  # ------------------------------------------------------------
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest
     needs: docker
     if: github.ref_name == 'develop' || github.ref_name == 'master'
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup kubectl
         run: |
@@ -200,7 +132,7 @@ jobs:
           chmod 600 ~/.kube/config
           kubectl version --client
 
-      - name: Create namespaces if missing
+      - name: Create namespaces
         run: |
           kubectl apply -f k8s/namespace-prod.yaml
           kubectl apply -f k8s/namespace-staging.yaml
@@ -216,11 +148,9 @@ jobs:
 
       - name: Apply manifests
         run: |
-          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/service.yaml
-          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/deployment.yaml
-          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/ingress.yaml
+          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/
 
-      - name: Update image (rolling update)
+      - name: Update image
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} set image deployment/${{ env.APP_NAME }} \
             ${{ env.APP_NAME }}=${{ env.image }} --record

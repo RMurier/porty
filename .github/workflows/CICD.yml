@@ -152,6 +152,14 @@ jobs:
           ls -lh docker-compose*.yml
           head -n 5 docker-compose*.yml
 
+      - name: Prepare build environment
+        shell: bash
+        run: |
+          mkdir -p ~/.aspnet/https
+          touch ~/.aspnet/https/cert.crt ~/.aspnet/https/cert.key
+          sed -i '/\.aspnet\/https/d' docker-compose*.yml
+          echo "✅ HTTPS mount neutralisé pour GitHub Actions"
+
       - name: Build and push API image
         shell: bash
         run: |
@@ -160,7 +168,7 @@ jobs:
           IMAGE_NAME="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
           echo "🚧 Build du service '$SERVICE' à partir de $FILE"
-          docker compose -f "$FILE" build "$SERVICE"
+          docker compose -f "$FILE" build --no-deps "$SERVICE"
 
           LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "${SERVICE}:latest" | head -n 1)
           echo "🔖 Tag $LOCAL_IMAGE → $IMAGE_NAME"

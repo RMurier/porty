@@ -146,9 +146,22 @@ jobs:
             echo "namespace=staging" >> $GITHUB_OUTPUT
           fi
 
-      - name: Apply manifests
+      - name: Apply manifests (with variable substitution)
         run: |
-          kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f k8s/
+            export APP_NAME=${{ env.APP_NAME }}
+            export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
+            if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            export HOSTNAME=${{ env.PROD_HOST }}
+            else
+            export HOSTNAME=${{ env.STAGING_HOST }}
+            fi
+
+            # Substitution et application en un coup
+            for file in k8s/*.yaml; do
+            echo "📄 Applying $file with env substitution..."
+            envsubst < "$file" | kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f -
+            done
+
 
       - name: Update image
         run: |

@@ -168,7 +168,7 @@ jobs:
           IMAGE_NAME="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
           echo "🚧 Build du service '$SERVICE' à partir de $FILE"
-          docker compose -f "$FILE" build --no-deps "$SERVICE"
+          docker compose -f "$FILE" build "$SERVICE"
 
           LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "${SERVICE}:latest" | head -n 1)
           echo "🔖 Tag $LOCAL_IMAGE → $IMAGE_NAME"

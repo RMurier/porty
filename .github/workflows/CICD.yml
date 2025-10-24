@@ -8,6 +8,7 @@ on:
 
 env:
   APP_NAME: porty
+  MAIN_SERVICE: api
   CONTAINER_PORT: "8080"
   HEALTH_PATH: "/healthz"
   PROD_HOST: "murierromain.com"
@@ -135,7 +136,6 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # 🔐 Récupère le docker-compose depuis les secrets encodés en base64
       - name: Recreate docker-compose from base64 secrets
         id: compose
         shell: bash
@@ -152,25 +152,14 @@ jobs:
           ls -lh docker-compose*.yml
           head -n 5 docker-compose*.yml
 
-      # 🔍 Détection automatique du service principal (premier service du compose)
-      - name: Detect main service
-        id: service
+      - name: Build and push API image
         shell: bash
         run: |
           FILE="${{ steps.compose.outputs.compose_file }}"
-          SERVICE=$(grep -E '^[[:space:]]{2,}[a-zA-Z0-9_-]+:' "$FILE" | head -n 1 | tr -d ' :')
-          echo "🧱 Service principal détecté : $SERVICE"
-          echo "service=$SERVICE" >> $GITHUB_OUTPUT
-
-      # 🛠️ Build et push de l'image
-      - name: Build and push image
-        shell: bash
-        run: |
-          FILE="${{ steps.compose.outputs.compose_file }}"
-          SERVICE="${{ steps.service.outputs.service }}"
+          SERVICE="${{ env.MAIN_SERVICE }}"
           IMAGE_NAME="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
-          echo "🚧 Build du service '$SERVICE' avec $FILE"
+          echo "🚧 Build du service '$SERVICE' à partir de $FILE"
           docker compose -f "$FILE" build "$SERVICE"
 
           LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "${SERVICE}:latest" | head -n 1)

@@ -14,8 +14,32 @@ spec:
       labels:
         app: ${APP_NAME}
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: ${APP_NAME}
           image: ${IMAGE}
+          imagePullPolicy: Always
           ports:
             - containerPort: ${CONTAINER_PORT}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://0.0.0.0:${CONTAINER_PORT}"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: ${CONTAINER_PORT}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: ${CONTAINER_PORT}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3

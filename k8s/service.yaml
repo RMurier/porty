@@ -5,10 +5,11 @@ metadata:
   labels:
     app: ${APP_NAME}
 spec:
-  type: ClusterIP
   selector:
     app: ${APP_NAME}
   ports:
     - name: http
+      protocol: TCP
       port: 80
       targetPort: ${CONTAINER_PORT}
+  type: ClusterIP

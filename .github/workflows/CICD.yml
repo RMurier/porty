@@ -162,15 +162,21 @@ jobs:
 
       - name: Build and push image
         run: |
-            # Sélection du fichier Compose
-            FILE="docker-compose.yml"
-            [ "${GITHUB_REF_NAME}" != "master" ] && FILE="docker-compose.dev.yml"
+            # Sélection du Dockerfile selon la branche
+            if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            FILE_PATH="api/Dockerfile"
+            else
+            FILE_PATH="api/Dockerfile"
+            fi
 
-            # Build direct avec tag complet (évite l'erreur "no such image")
-            docker build -t ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} -f $(grep -E 'build:|Dockerfile' -m 1 $FILE | sed 's/.* //') .
+            echo "🛠️ Build de l'image Docker à partir de $FILE_PATH"
 
-            # Push vers GHCR
+            # Construction et tag
+            docker build -t ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} -f $FILE_PATH ./api
+
+            echo "🚀 Push vers GHCR"
             docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
 
 
       - name: Save image ref

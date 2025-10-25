@@ -15,11 +15,14 @@ spec:
         app: ${APP_NAME}
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+        - name: ghcr-secret            # si ton image GHCR est privée
       containers:
         - name: ${APP_NAME}
           image: ${IMAGE}
           imagePullPolicy: Always
+          workingDir: /app
+          command: ["dotnet"]          # ✅ exécute l’app publiée
+          args: ["/app/api.dll"]       # ✅ (image construite par la CI)
           ports:
             - containerPort: ${CONTAINER_PORT}
           env:
@@ -27,9 +30,15 @@ spec:
               value: "Production"
             - name: ASPNETCORE_URLS
               value: "http://0.0.0.0:${CONTAINER_PORT}"
+            # 👉 Connection string en Secret recommandé :
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: app-config
+                  key: ConnectionStrings__DefaultConnection
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: ${HEALTH_PATH}     # ← utilise ta variable (ex: "/")
               port: ${CONTAINER_PORT}
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -37,7 +46,7 @@ spec:
             failureThreshold: 5
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: ${HEALTH_PATH}
               port: ${CONTAINER_PORT}
             initialDelaySeconds: 30
             periodSeconds: 20

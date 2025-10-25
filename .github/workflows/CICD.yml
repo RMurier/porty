@@ -15,10 +15,10 @@ env:
 
 jobs:
   # ------------------------------------------------------------
-  # 1️⃣ ANALYSE & TESTS
+  # 1️⃣ TESTS & ANALYSE (indépendant du déploiement)
   # ------------------------------------------------------------
   analyze:
-    name: 🧪 Build & Test
+    name: 🧪 Tests & Sonar Analysis
     runs-on: windows-latest
 
     steps:
@@ -34,17 +34,35 @@ jobs:
         with:
           node-version: 20
 
-      - run: dotnet restore ./api
-      - run: dotnet build ./api -c Release
-      - run: dotnet test ./api -c Release --no-build
+      - name: Restore dependencies
+        run: dotnet restore ./api
+
+      - name: Build backend
+        run: dotnet build ./api -c Release
+
+      - name: Test backend
+        run: dotnet test ./api -c Release --no-build
+
+      - name: Install frontend deps
+        working-directory: front
+        run: npm ci
+
+      - name: Test frontend (si dispo)
+        working-directory: front
+        shell: bash
+        run: |
+          if npm run | grep -q "test"; then
+            npm run test -- --coverage
+          else
+            echo "⚠️ Aucun test défini, étape ignorée."
+          fi
 
   # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH VIA DOCKER COMPOSE
+  # 2️⃣ BUILD & PUSH IMAGE (Docker Compose)
   # ------------------------------------------------------------
   docker:
-    name: 🐳 Build & Push Docker Compose Image
+    name: 🐳 Build & Push Image via docker-compose
     runs-on: ubuntu-latest
-    needs: analyze
     if: github.ref_name == 'develop' || github.ref_name == 'master'
     outputs:
       image: ${{ steps.push.outputs.image }}
@@ -67,32 +85,30 @@ jobs:
           fi
 
       - id: build
-        name: Build with docker-compose
+        name: Build from docker-compose
         run: |
           FILE="${{ steps.compose.outputs.compose_file }}"
-          echo "🚧 Building environment using $FILE"
-
+          echo "🚧 Building environment from $FILE"
           docker compose -f "$FILE" up -d --build api
           docker ps
 
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "🏷️ Tag final → $IMAGE_TAG"
+          echo "🏷️ Tag → $IMAGE_TAG"
 
           docker commit porty-api-dev "$IMAGE_TAG"
           docker push "$IMAGE_TAG"
-
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - id: push
         run: echo "image=${{ steps.build.outputs.image }}" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------
-  # 3️⃣ DEPLOY TO K3S
+  # 3️⃣ DEPLOY TO K3S (en parallèle des tests)
   # ------------------------------------------------------------
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest
-    needs: docker
+    needs: docker  # ⚙️ uniquement besoin de l'image, pas des tests
     if: github.ref_name == 'develop' || github.ref_name == 'master'
 
     steps:

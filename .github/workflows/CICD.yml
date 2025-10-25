@@ -10,7 +10,7 @@ env:
   APP_NAME: porty
   MAIN_SERVICE: api
   CONTAINER_PORT: "8080"
-  HEALTH_PATH: "/healthz"
+  HEALTH_PATH: "/"
   PROD_HOST: "murierromain.com"
   STAGING_HOST: "test.murierromain.com"
   REGISTRY: ghcr.io
@@ -87,60 +87,53 @@ jobs:
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
   # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH IMAGE (depuis docker-compose)
+  # 2️⃣ BUILD & PUSH IMAGE (sans Dockerfile)
   # ------------------------------------------------------------
   docker:
-    name: 🐳 Build & Push from docker-compose
+    name: 🐳 Build & Push Runnable Image
     runs-on: ubuntu-latest
     if: github.ref_name == 'develop' || github.ref_name == 'master'
     outputs:
-      image: ${{ steps.build.outputs.image }}
+      image: ${{ steps.publish.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Recreate docker-compose from secrets
-        id: compose
+      - id: publish
+        name: Publish .NET API and Build Image (no Dockerfile)
         shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > docker-compose.yml
-            echo "compose_file=docker-compose.yml" >> $GITHUB_OUTPUT
-          else
-            echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > docker-compose.dev.yml
-            echo "compose_file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
-          fi
-          echo "✅ docker-compose reconstruit :"
-          ls -lh docker-compose*.yml
+          set -euo pipefail
 
-      - id: build
-        name: Build API image from docker-compose (tag forcé)
-        shell: bash
-        run: |
-          FILE="${{ steps.compose.outputs.compose_file }}"
-          echo "🚧 Building API image from $FILE"
+          echo "📦 Publishing API..."
+          dotnet publish api -c Release -o publish/
 
-          # Build le service API
-          docker compose -f "$FILE" build api
-
+          BASE_IMAGE="mcr.microsoft.com/dotnet/aspnet:8.0"
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "🏷️ Tag final → $IMAGE_TAG"
 
-          # Recherche d'une image fraîchement buildée
-          LAST_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v none | head -n 1 || true)
+          echo "🔧 Base image: $BASE_IMAGE"
+          docker pull "$BASE_IMAGE"
+          CID=$(docker create "$BASE_IMAGE")
 
-          if [ -z "$LAST_IMAGE" ]; then
-            echo "⚠️ Aucune image trouvée automatiquement. On prend la base mcr.microsoft.com/dotnet/sdk:8.0"
-            docker pull mcr.microsoft.com/dotnet/sdk:8.0
-            docker tag mcr.microsoft.com/dotnet/sdk:8.0 "$IMAGE_TAG"
-          else
-            echo "✅ Image détectée : $LAST_IMAGE"
-            docker tag "$LAST_IMAGE" "$IMAGE_TAG"
-          fi
+          echo "📁 Copying published app..."
+          docker cp publish/. "$CID":/app/
 
+          echo "🏗️ Commit final image..."
+          docker commit \
+            --change='WORKDIR /app' \
+            --change='ENTRYPOINT ["dotnet","/app/api.dll"]' \
+            "$CID" "$IMAGE_TAG"
+          docker rm "$CID"
+
+          echo "🚀 Pushing to GHCR..."
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
@@ -203,3 +196,10 @@ jobs:
           kubectl -n ${{ steps.envsel.outputs.namespace }} set image deployment/${{ env.APP_NAME }} \
             ${{ env.APP_NAME }}=${{ needs.docker.outputs.image }} --record
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deployment/${{ env.APP_NAME }} --timeout=180s
+
+      - name: Verify Deployment
+        run: |
+          echo "✅ Checking app health..."
+          kubectl -n ${{ steps.envsel.outputs.namespace }} get pods -l app=${{ env.APP_NAME }}
+          sleep 10
+          kubectl -n ${{ steps.envsel.outputs.namespace }} logs -l app=${{ env.APP_NAME }} --tail=50

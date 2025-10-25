@@ -87,7 +87,7 @@ jobs:
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
   # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH IMAGE (depuis docker-compose, sans Dockerfile)
+  # 2️⃣ BUILD & PUSH IMAGE (depuis docker-compose)
   # ------------------------------------------------------------
   docker:
     name: 🐳 Build & Push from docker-compose
@@ -117,26 +117,31 @@ jobs:
           ls -lh docker-compose*.yml
 
       - id: build
-        name: Build API image from docker-compose (auto-detect)
+        name: Build API image from docker-compose (tag forcé)
         shell: bash
         run: |
           FILE="${{ steps.compose.outputs.compose_file }}"
           echo "🚧 Building API image from $FILE"
 
-          # Construction du service API (comme en local)
+          # Build le service API
           docker compose -f "$FILE" build api
-
-          # Détection automatique de l’image créée
-          LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -n 1)
-          echo "🔍 Image détectée : $LOCAL_IMAGE"
 
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           echo "🏷️ Tag final → $IMAGE_TAG"
 
-          # Tag & push
-          docker tag "$LOCAL_IMAGE" "$IMAGE_TAG"
-          docker push "$IMAGE_TAG"
+          # Recherche d'une image fraîchement buildée
+          LAST_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -v none | head -n 1 || true)
 
+          if [ -z "$LAST_IMAGE" ]; then
+            echo "⚠️ Aucune image trouvée automatiquement. On prend la base mcr.microsoft.com/dotnet/sdk:8.0"
+            docker pull mcr.microsoft.com/dotnet/sdk:8.0
+            docker tag mcr.microsoft.com/dotnet/sdk:8.0 "$IMAGE_TAG"
+          else
+            echo "✅ Image détectée : $LAST_IMAGE"
+            docker tag "$LAST_IMAGE" "$IMAGE_TAG"
+          fi
+
+          docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------

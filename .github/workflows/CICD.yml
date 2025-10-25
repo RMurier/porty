@@ -9,6 +9,7 @@ on:
 env:
   APP_NAME: porty
   REGISTRY: ghcr.io
+  CONTAINER_PORT: "8080"   
   IMAGE_NAME: rmurier/porty
   PROD_HOST: "murierromain.com"
   STAGING_HOST: "test.murierromain.com"

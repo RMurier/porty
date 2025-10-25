@@ -37,7 +37,7 @@ services:
     ports:
       - "9090:9090"
       - "9091:9091"
-    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "./Porty.Api.csproj"]
+    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "./api.csproj"]
     networks:
       - web-dev
 

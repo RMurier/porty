@@ -87,14 +87,14 @@ jobs:
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
   # ------------------------------------------------------------
-  # 2️⃣ BUILD & PUSH IMAGE
+  # 2️⃣ BUILD & PUSH IMAGE (depuis docker-compose)
   # ------------------------------------------------------------
   docker:
-    name: 🐳 Build & Push Docker Image
+    name: 🐳 Build & Push from docker-compose
     runs-on: ubuntu-latest
     if: github.ref_name == 'develop' || github.ref_name == 'master'
     outputs:
-      image: ${{ steps.push.outputs.image }}
+      image: ${{ steps.build.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
@@ -108,20 +108,29 @@ jobs:
         run: |
           if [ "${GITHUB_REF_NAME}" = "master" ]; then
             echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > docker-compose.yml
+            echo "compose_file=docker-compose.yml" >> $GITHUB_OUTPUT
           else
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > docker-compose.dev.yml
+            echo "compose_file=docker-compose.dev.yml" >> $GITHUB_OUTPUT
           fi
-          ls -lh docker-compose*.yml
 
-      - id: push
-        name: Push base image to GHCR
+      - id: build
+        name: Build API image from docker-compose
         shell: bash
         run: |
+          FILE="${{ steps.compose.outputs.compose_file }}"
+          echo "🚧 Building API image from $FILE"
+
+          # Construction de l’image exactement comme en local
+          docker compose -f "$FILE" build api
+
+          # Détermination du tag
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "⚙️ Tagging base image → $IMAGE_TAG"
-          docker pull mcr.microsoft.com/dotnet/sdk:8.0
-          docker tag mcr.microsoft.com/dotnet/sdk:8.0 "$IMAGE_TAG"
+
+          # Tag et push
+          docker tag porty-api-dev "$IMAGE_TAG" 2>/dev/null || docker tag porty-api-prod "$IMAGE_TAG"
           docker push "$IMAGE_TAG"
+
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------

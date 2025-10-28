@@ -161,6 +161,11 @@ jobs:
             echo "namespace=staging" >> $GITHUB_OUTPUT
           fi
 
+      - name: Apply ClusterIssuer (cert-manager)
+        run: |
+          echo "📜 Application du cluster-issuer cert-manager (letsencrypt-prod)..."
+          kubectl apply -f k8s/cluster-issuer.yaml
+
       - name: Decode compose & extract ConnectionString from secrets
         id: conn
         shell: bash

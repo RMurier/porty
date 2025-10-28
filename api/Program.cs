@@ -33,7 +33,12 @@ builder.Services.AddCors(opts =>
              "http://localhost:5173",
              "http://127.0.0.1:5173",
              "http://localhost:8080",
-             "http://127.0.0.1:8080")
+             "http://127.0.0.1:8080",
+             "http://murierromain.com",
+             "http://test.murierromain.com",
+             "https://murierromain.com",
+             "https://test.murierromain.com"
+             )
          .AllowAnyHeader()
          .AllowAnyMethod()
          .AllowCredentials());
@@ -51,7 +56,16 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("Front");
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/")
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
 
+    await next();
+});
 app.MapControllers();
 
 app.Run();

@@ -29,7 +29,7 @@ spec:
             - name: ASPNETCORE_URLS
               value: "http://0.0.0.0:${CONTAINER_PORT}"
             - name: ConnectionStrings__DefaultConnection
-              value: "${CONNECTION_STRING}"   # <-- injectée depuis le compose (secret b64)
+              value: "${CONNECTION_STRING}"
           readinessProbe:
             httpGet:
               path: ${HEALTH_PATH}

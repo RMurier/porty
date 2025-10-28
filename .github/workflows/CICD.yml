@@ -8,6 +8,7 @@ on:
 
 env:
   APP_NAME: porty
+  FRONT_APP_NAME: porty-front
   MAIN_SERVICE: api
   CONTAINER_PORT: "8080"
   HEALTH_PATH: "/"
@@ -15,6 +16,7 @@ env:
   STAGING_HOST: "test.murierromain.com"
   REGISTRY: ghcr.io
   IMAGE_NAME: rmurier/porty
+  FRONT_IMAGE_NAME: rmurier/porty-front
 
 jobs:
   analyze:
@@ -96,8 +98,6 @@ jobs:
         name: Publish .NET API & Assemble Image
         shell: bash
         run: |
-          set -euo pipefail
-
           dotnet publish api -c Release -o publish/
           BASE_IMAGE="mcr.microsoft.com/dotnet/aspnet:8.0"
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
@@ -105,7 +105,6 @@ jobs:
           docker pull "$BASE_IMAGE"
           CID=$(docker create "$BASE_IMAGE")
           docker cp publish/. "$CID":/app/
-
           docker commit \
             --change='WORKDIR /app' \
             --change='ENTRYPOINT ["dotnet","/app/api.dll"]' \
@@ -141,7 +140,7 @@ jobs:
         id: push
         shell: bash
         run: |
-          IMAGE_TAG="ghcr.io/rmurier/porty-front:${{ github.sha }}"
+          IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -r front/dist/* docker-tmp/nginx/
 
@@ -168,7 +167,6 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
-          kubectl version --client
 
       - name: Namespaces
         run: |
@@ -191,7 +189,6 @@ jobs:
         id: conn
         shell: bash
         run: |
-          set -euo pipefail
           YQ_VERSION=v4.44.3
           sudo curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
@@ -213,6 +210,7 @@ jobs:
         shell: bash
         run: |
           export APP_NAME=${{ env.APP_NAME }}
+          export FRONT_APP_NAME=${{ env.FRONT_APP_NAME }}
           export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
           export IMAGE=${{ needs.docker-api.outputs.image }}
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
@@ -234,6 +232,5 @@ jobs:
       - name: Rollout status
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
-          kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/porty-front --timeout=180s || true
+          kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} get pods
-          kubectl -n ${{ steps.envsel.outputs.namespace }} logs -l app=${{ env.APP_NAME }} --tail=200 || true

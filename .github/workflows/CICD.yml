@@ -17,9 +17,6 @@ env:
   IMAGE_NAME: rmurier/porty
 
 jobs:
-  # ------------------------------
-  # 1) Analyse Code & Tests
-  # ------------------------------
   analyze:
     name: 🧪 Analyse & Tests
     runs-on: windows-latest
@@ -80,9 +77,6 @@ jobs:
           ${{ runner.temp }}/scanner/dotnet-sonarscanner end
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
-  # ------------------------------
-  # 2) Build .NET API Image
-  # ------------------------------
   docker-api:
     name: 🐳 Build & Push API Image
     runs-on: ubuntu-latest
@@ -121,9 +115,6 @@ jobs:
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  # ------------------------------
-  # 3) Build Frontend Image
-  # ------------------------------
   docker-front:
     name: 🌐 Build & Push Frontend Image
     runs-on: ubuntu-latest
@@ -154,14 +145,16 @@ jobs:
           mkdir -p docker-tmp/nginx
           cp -r front/dist/* docker-tmp/nginx/
 
-          echo 'FROM nginx:alpine\nCOPY . /usr/share/nginx/html\nEXPOSE 80' > docker-tmp/Dockerfile
+          cat <<EOF > docker-tmp/Dockerfile
+          FROM nginx:alpine
+          COPY . /usr/share/nginx/html
+          EXPOSE 80
+          EOF
+
           docker build -t "$IMAGE_TAG" docker-tmp
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  # ------------------------------
-  # 4) Deploy to K3S
-  # ------------------------------
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest

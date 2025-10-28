@@ -53,7 +53,7 @@ services:
       HOST: "0.0.0.0"
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
-      VITE_API_URL: "https://localhost:9090"
+      VITE_API_URL: "https://localhost:8080"
     ports:
       - "5174:443"
     command: >

@@ -14,9 +14,11 @@ spec:
       labels:
         app: porty-front
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: porty-front
-          image: ghcr.io/rmurier/porty-front:latest
+          image: ${FRONT_IMAGE}
           ports:
             - containerPort: 80
           resources:

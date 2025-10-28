@@ -142,7 +142,7 @@ jobs:
         run: |
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
-          cp -r front/dist/* docker-tmp/nginx/
+          cp -a front/dist/. docker-tmp/nginx/
 
           cat <<EOF > docker-tmp/Dockerfile
           FROM nginx:alpine

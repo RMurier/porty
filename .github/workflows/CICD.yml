@@ -98,6 +98,7 @@ jobs:
         name: Publish .NET API & Assemble Image
         shell: bash
         run: |
+          set -euo pipefail
           dotnet publish api -c Release -o publish/
           BASE_IMAGE="mcr.microsoft.com/dotnet/aspnet:8.0"
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
@@ -136,21 +137,27 @@ jobs:
           npm ci
           npm run build
 
-      - name: Build NGINX image
+      - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
         run: |
+          set -euo pipefail
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
+          # Prépare le contexte de build EXACTEMENT sur le contenu du build
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
 
-          cat <<EOF > docker-tmp/Dockerfile
+          # Dockerfile dans le même dossier (contexte = docker-tmp/nginx)
+          cat <<'EOF' > docker-tmp/nginx/Dockerfile
           FROM nginx:alpine
           COPY . /usr/share/nginx/html
           EXPOSE 80
           EOF
 
-          docker build -t "$IMAGE_TAG" docker-tmp
+          echo "📦 Contenu copié dans docker-tmp/nginx :"
+          ls -la docker-tmp/nginx | head -n 50 || true
+
+          docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
@@ -167,6 +174,7 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
+          kubectl version --client
 
       - name: Namespaces
         run: |
@@ -189,6 +197,7 @@ jobs:
         id: conn
         shell: bash
         run: |
+          set -euo pipefail
           YQ_VERSION=v4.44.3
           sudo curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
@@ -199,6 +208,9 @@ jobs:
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
           fi
 
+          echo "🧩 compose.yml aperçu :"
+          head -n 40 compose.yml || true
+
           CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
           if [ -z "$CONN" ] || [ "$CONN" = "null" ]; then
             echo "❌ ConnectionStrings__DefaultConnection introuvable"; exit 1
@@ -206,7 +218,7 @@ jobs:
           CONN_ESC="${CONN//%/%%}"
           echo "connection_string=$CONN_ESC" >> $GITHUB_OUTPUT
 
-      - name: Apply manifests
+      - name: Apply manifests (envsubst)
         shell: bash
         run: |
           export APP_NAME=${{ env.APP_NAME }}
@@ -224,13 +236,17 @@ jobs:
 
           export CONNECTION_STRING='${{ steps.conn.outputs.connection_string }}'
 
+          echo "🏷️ Host: $HOSTNAME"
+          echo "📦 API image: $IMAGE"
+          echo "📦 FRONT image: $FRONT_IMAGE"
+
           for f in k8s/*.yaml; do
-            echo "📄 Applying $f"
+            echo "📄 $f"
             envsubst < "$f" | kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f -
           done
 
-      - name: Rollout status
+      - name: Rollout & logs
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
-          kubectl -n ${{ steps.envsel.outputs.namespace }} get pods
+          kubectl -n ${{ steps.envsel.outputs.namespace }} get pods -o wide

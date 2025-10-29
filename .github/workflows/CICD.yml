@@ -309,3 +309,22 @@ jobs:
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
+
+      - name: Smoke test Ingress (HTTP)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST="${{ steps.envsel.outputs.host }}"
+          LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$LB" ]; then
+            LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          fi
+          [ -n "$LB" ] || { echo "No LB address for Traefik"; kubectl -n kube-system get svc traefik -o wide; exit 1; }
+
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST" "http://$LB/")
+          echo "HTTP $CODE for $HOST via $LB"
+          case "$CODE" in
+            200|301|302|307|308) exit 0 ;;
+            *) echo "Ingress HTTP check failed (expected 200/3xx)"; exit 1 ;;
+          esac
+

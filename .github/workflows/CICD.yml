@@ -2,8 +2,7 @@ name: CI/CD Porty
 
 on:
   push:
-    branches:
-      - '**'
+    branches: ['**']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -128,19 +127,16 @@ jobs:
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-          # nginx config SPA fallback
+          # nginx SPA fallback
           cat > docker-tmp/nginx/default.conf <<'CONF'
           server {
             listen 80;
             server_name _;
             root /usr/share/nginx/html;
             index index.html;
-            location / {
-              try_files $uri /index.html;
-            }
+            location / { try_files $uri /index.html; }
           }
           CONF
-          # Dockerfile
           cat > docker-tmp/nginx/Dockerfile <<'EOF'
           FROM nginx:alpine
           COPY . /usr/share/nginx/html
@@ -200,12 +196,9 @@ jobs:
             echo "ingress_http_name=porty-staging-front-http" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Show Traefik entrypoints (names)
-        run: kubectl -n kube-system get svc traefik -o jsonpath='{range .spec.ports[*]}{.name}:{.port}{"\n"}{end}'
-
       - name: Assert images present
         run: |
-          test -n "${{ needs.docker-api.outputs.image }}" || (echo "API image missing" && exit 1)
+          test -n "${{ needs.docker-api.outputs.image }}"   || (echo "API image missing" && exit 1)
           test -n "${{ needs.docker-front.outputs.image }}" || (echo "Front image missing" && exit 1)
 
       - name: Apply ClusterIssuer (letsencrypt-prod)
@@ -228,7 +221,8 @@ jobs:
           rm -f compose.yml
 
       - name: Ensure GHCR pull secret in target ns
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
@@ -238,7 +232,8 @@ jobs:
 
       - name: Apply app manifests (Deployments & Services)
         shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           export APP_NAME=${{ env.APP_NAME }}
@@ -256,34 +251,31 @@ jobs:
 
       - name: Cleanup legacy ingresses
         shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           kubectl -n "$NS" delete ingress porty --ignore-not-found
           kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
           kubectl -n "$NS" delete ingress porty-${NS}-ingress --ignore-not-found
 
-      - name: Apply environment Ingress (as-is)
+      - name: Apply environment Ingress (force namespace to target)
         shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front }}"
-          kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_api }}"
+          for F in "${{ steps.envsel.outputs.ingress_front }}" "${{ steps.envsel.outputs.ingress_api }}"; do
+            yq '.metadata.namespace = env(NS)' "$F" | kubectl apply -n "$NS" -f -
+          done
           if [ -f "${{ steps.envsel.outputs.ingress_front_http }}" ]; then
-            kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front_http }}"
+            yq '.metadata.namespace = env(NS)' "${{ steps.envsel.outputs.ingress_front_http }}" | kubectl apply -n "$NS" -f -
           fi
-
-      # ⚠️ IMPORTANT : pas de Middleware CRD → on supprime TOUTE annotation middleware
-      - name: Drop middleware annotation on staging front (always)
-        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
-        run: |
-          kubectl -n staging annotate ingress porty-staging-front \
-            traefik.ingress.kubernetes.io/router.middlewares- --overwrite || true
 
       - name: Ensure Ingress class + entrypoints + issuer
         shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
@@ -291,20 +283,18 @@ jobs:
             kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite || true
           done
-          if kubectl -n "$NS" get ingress "${{ steps.envsel.outputs.ingress_http_name }}" >/dev/null 2>&1; then
-            kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" kubernetes.io/ingress.class=traefik --overwrite
-            kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" traefik.ingress.kubernetes.io/router.entrypoints=web --overwrite
-          fi
 
       - name: Sanity check
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" get deploy,svc,ingress -o wide
           kubectl -n "$NS" get endpoints porty porty-front || true
 
       - name: Local check via port-forward (front Service)
         shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
@@ -359,14 +349,3 @@ jobs:
           SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
           echo "HTTPS $CODE (Server: ${SERVER:-unknown}) for $HOST"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
-
-      - name: Show applied ingresses
-        shell: bash
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
-        run: |
-          set -euo pipefail
-          kubectl -n "$NS" get ingress -o custom-columns=NAME:.metadata.name,HOSTS:.spec.rules[*].host,CLASS:.spec.ingressClassName,ENTRYPOINTS:.metadata.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints,TLS:.spec.tls[*].secretName --no-headers
-          echo "----"
-          for i in $(kubectl -n "$NS" get ingress -o name); do
-            echo "# $i"; kubectl -n "$NS" get "$i" -o yaml | sed -n '1,120p'; echo;
-          done

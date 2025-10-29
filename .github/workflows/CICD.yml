@@ -202,6 +202,9 @@ jobs:
             exit 1
           fi
 
+      - name: Apply ClusterIssuer (letsencrypt-prod)
+        run: kubectl apply -f k8s/cluster-issuer.yaml
+
       - name: Load DB connection string (masked)
         id: conn
         shell: bash
@@ -213,10 +216,7 @@ jobs:
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
           fi
           CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
-          if [ -z "$CONN" ] || [ "$CONN" = "null" ]; then
-            echo "Missing ConnectionStrings__DefaultConnection"
-            exit 1
-          fi
+          [ -n "$CONN" ] && [ "$CONN" != "null" ] || { echo "Missing ConnectionStrings__DefaultConnection"; exit 1; }
           echo "::add-mask::$CONN"
           printf 'CONNECTION_STRING=%s\n' "$CONN" >> "$GITHUB_ENV"
           rm -f compose.yml
@@ -231,11 +231,7 @@ jobs:
             --docker-password="${{ secrets.TOKEN_GITHUB }}" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
-      - name: Staging middleware
-        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
-        run: kubectl apply -f k8s/middleware-staging-noindex.yaml
-
-      - name: Apply app manifests (target namespace ONLY)
+      - name: Apply app manifests (Deployments & Services)
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
@@ -248,33 +244,67 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-          # CONNECTION_STRING already exported via $GITHUB_ENV
+          # $CONNECTION_STRING est déjà dans l'env et masquée
 
-          # Force le contexte pour éviter toute confusion de namespace
           kubectl config set-context --current --namespace="$NS"
 
-          # API & FRONT (envsubst)
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
           envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
-          # Nettoyage des anciens ingresses parasites éventuels dans ce ns
-          kubectl -n "$NS" delete ingress porty --ignore-not-found
-          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
+      - name: Staging middleware (apply if present, else remove annotation later)
+        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
+        id: mw
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f k8s/middleware-staging-noindex.yaml ]; then
+            kubectl -n staging apply -f k8s/middleware-staging-noindex.yaml
+            echo "have_mw=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_mw=false" >> "$GITHUB_OUTPUT"
+          fi
 
-          # Ingress SANS envsubst (fichier sans placeholder)
-          kubectl apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
-
-      - name: Sanity check (no cross-env changes)
+      - name: Apply environment Ingress (as-is, no envsubst)
+        shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
-          echo "===== Current namespace ($NS) ====="
+          set -euo pipefail
+          # Nettoyage d’anciens Ingress génériques s'ils existent
+          kubectl -n "$NS" delete ingress porty --ignore-not-found
+          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
+
+          kubectl -n "$NS" apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
+
+      - name: Ensure Traefik entrypoints + correct issuer (patch idempotent)
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          NAME=$(basename "${{ steps.envsel.outputs.ingress }}" .yaml)
+          # web + websecure
+          kubectl -n "$NS" annotate ingress "$NAME" \
+            traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
+          # letsencrypt-prod (aligne avec ton ClusterIssuer READY)
+          kubectl -n "$NS" annotate ingress "$NAME" \
+            cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+
+      - name: If no staging middleware file, drop the annotation to avoid 404
+        if: ${{ steps.envsel.outputs.namespace == 'staging' && steps.mw.outputs.have_mw == 'false' }}
+        run: |
+          kubectl -n staging annotate ingress porty-staging-ingress \
+            traefik.ingress.kubernetes.io/router.middlewares- --overwrite
+
+      - name: Sanity check
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          echo "===== $NS resources ====="
           kubectl -n "$NS" get deploy,svc,ingress -o wide
-          if [ "$NS" = "prod" ]; then OTHER=staging; else OTHER=prod; fi
-          echo "===== Other namespace ($OTHER) ====="
-          kubectl -n "$OTHER" get deploy,svc,ingress -o name || true
+          kubectl -n "$NS" get endpoints porty porty-front || true
 
       - name: Rollout & status
         run: |

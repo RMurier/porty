@@ -145,6 +145,11 @@ jobs:
         run: |
           npm ci
           npm run build
+    
+      - name: Assert front build has index.html
+        working-directory: front/dist
+        run: |
+          test -f index.html || { echo "❌ front/dist/index.html manquant"; ls -la; exit 1; }
 
       - name: Build NGINX image (serve React build at /)
         id: push
@@ -310,6 +315,22 @@ jobs:
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
 
+      - name: Local check via port-forward (front Service)
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$NS" rollout status deploy/porty-front --timeout=120s
+          kubectl -n "$NS" port-forward svc/porty-front 18080:80 >/dev/null 2>&1 &
+          PF_PID=$!
+          # attend l’ouverture du port
+          for i in {1..20}; do nc -z 127.0.0.1 18080 && break || sleep 0.3; done
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/index.html || true)
+          echo "port-forward front → /index.html => $CODE"
+          kill $PF_PID || true
+          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) echo "❌ Nginx/Service renvoie $CODE"; exit 1 ;; esac
+
       - name: Smoke test Ingress (HTTP)
         shell: bash
         run: |
@@ -321,10 +342,10 @@ jobs:
           fi
           [ -n "$LB" ] || { echo "No LB address for Traefik"; kubectl -n kube-system get svc traefik -o wide; exit 1; }
 
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST" "http://$LB/")
-          echo "HTTP $CODE for $HOST via $LB"
-          case "$CODE" in
-            200|301|302|307|308) exit 0 ;;
-            *) echo "Ingress HTTP check failed (expected 200/3xx)"; exit 1 ;;
-          esac
-
+          echo "→ curl http://$LB/ (Host: $HOST)"
+          OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/")
+          echo "$OUT"
+          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
+          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
+          echo "HTTP $CODE (Server: ${SERVER:-unknown}) for $HOST via $LB"
+          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac

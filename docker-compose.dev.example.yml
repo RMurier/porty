@@ -1,0 +1,79 @@
+name: porty-dev
+version: "3.9"
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: porty-sql-dev
+    environment:
+      SA_PASSWORD: "[SA_PASSWORD]"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1434:1433"
+    volumes:
+      - sql_data_dev:/var/opt/mssql
+    networks:
+      - web-dev
+    restart: always
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: porty-api-dev
+    working_dir: /src
+    volumes:
+      - ./api:/src
+      - api_bin_dev:/src/bin
+      - api_obj_dev:/src/obj
+      - dotnet_nuget_dev:/root/.nuget/packages
+      - ~/.aspnet/https:/https:ro
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "https://0.0.0.0:9090;http://0.0.0.0:9091"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "devcert"
+      ConnectionStrings__DefaultConnection: "Server=db;Database=[DB_SERVER];User Id=[DB_USER];Password=[DB_PASSWORD];TrustServerCertificate=True;MultipleActiveResultSets=True"
+    depends_on:
+      - db
+    ports:
+      - "9090:9090"
+      - "9091:9091"
+    command: ["dotnet", "watch", "run", "--non-interactive", "--project", "./api.csproj"]
+    networks:
+      - web-dev
+
+  front:
+    image: node:20-alpine
+    container_name: porty-front-dev
+    working_dir: /app
+    volumes:
+      - ./front:/app
+      - front_node_dev:/app/node_modules
+      - ~/.aspnet/https:/https:ro
+    environment:
+      HOST: "0.0.0.0"
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      VITE_API_URL: "https://localhost:8080"
+    ports:
+      - "5174:443"
+    command: >
+      sh -c "
+      npm install &&
+      npm run build &&
+      npx serve -s dist -l 443
+      --ssl-cert /https/cert.crt
+      --ssl-key /https/cert.key"
+    depends_on:
+      - api
+    networks:
+      - web-dev
+
+networks:
+  web-dev:
+
+volumes:
+  sql_data_dev:
+  api_bin_dev:
+  api_obj_dev:
+  dotnet_nuget_dev:
+  front_node_dev:

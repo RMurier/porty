@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+  labels:
+    app: ${APP_NAME}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: ${APP_NAME}
+          image: ${IMAGE}
+          imagePullPolicy: Always
+          workingDir: /app
+          command: ["dotnet"]
+          args: ["/app/api.dll"]
+          ports:
+            - containerPort: ${CONTAINER_PORT}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://0.0.0.0:${CONTAINER_PORT}"
+            - name: ConnectionStrings__DefaultConnection
+              value: "${CONNECTION_STRING}"
+          readinessProbe:
+            httpGet:
+              path: ${HEALTH_PATH}
+              port: ${CONTAINER_PORT}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: ${HEALTH_PATH}
+              port: ${CONTAINER_PORT}
+            initialDelaySeconds: 30
+            periodSeconds: 20

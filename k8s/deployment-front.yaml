@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: porty-front
+  labels:
+    app: porty-front
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: porty-front
+  template:
+    metadata:
+      labels:
+        app: porty-front
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: porty-front
+          image: ${FRONT_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "250m"

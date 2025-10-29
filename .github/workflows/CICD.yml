@@ -2,9 +2,13 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['**']
+    branches:
+      - '**'
   pull_request:
-    types: [opened, synchronize, reopened]
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 concurrency:
   group: porty-${{ github.ref }}
@@ -13,10 +17,10 @@ concurrency:
 env:
   APP_NAME: porty
   FRONT_APP_NAME: porty-front
-  CONTAINER_PORT: "8080"
-  HEALTH_PATH: "/"
-  PROD_HOST: "murierromain.com"
-  STAGING_HOST: "test.murierromain.com"
+  CONTAINER_PORT: '8080'
+  HEALTH_PATH: '/'
+  PROD_HOST: murierromain.com
+  STAGING_HOST: test.murierromain.com
   REGISTRY: ghcr.io
   IMAGE_NAME: rmurier/porty
   FRONT_IMAGE_NAME: rmurier/porty-front
@@ -29,18 +33,29 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
+
       - uses: actions/setup-java@v4
-        with: { java-version: 17, distribution: zulu }
+        with:
+          java-version: 17
+          distribution: zulu
+
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
+
       - name: Frontend install
         working-directory: front
         run: npm ci
+
       - name: Frontend tests
         working-directory: front
         shell: bash
@@ -50,6 +65,7 @@ jobs:
           else
             echo "No frontend tests, skipping."
           fi
+
       - name: SonarCloud begin
         shell: pwsh
         run: >
@@ -59,17 +75,19 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.sourceEncoding="UTF-8"
+
       - name: Build & Test backend
         working-directory: api
         run: |
           dotnet restore
           dotnet build -c Release
           dotnet test -c Release --no-build
+
       - name: SonarCloud end
         shell: pwsh
         run: >
           ${{ runner.temp }}/scanner/dotnet-sonarscanner end
-          /d:sonar.token="${{ SONAR_TOKEN }}"
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"
 
   docker-api:
     name: 🐳 Build & Push API Image
@@ -79,10 +97,14 @@ jobs:
       image: ${{ steps.publish.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - id: publish
         name: Publish .NET API & Assemble Image
         shell: bash
@@ -110,15 +132,20 @@ jobs:
       image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Build frontend
         working-directory: front
         run: |
           npm ci
           npm run build
+
       - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
@@ -139,7 +166,9 @@ jobs:
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest
-    needs: [docker-api, docker-front]
+    needs:
+      - docker-api
+      - docker-front
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master') }}
     steps:
       - uses: actions/checkout@v4
@@ -161,7 +190,7 @@ jobs:
           kubectl apply -f k8s/namespace-prod.yaml
           kubectl apply -f k8s/namespace-staging.yaml
 
-      - name: Select environment (strict + names)
+      - name: Select environment
         id: envsel
         shell: bash
         run: |
@@ -171,16 +200,14 @@ jobs:
             echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
             echo "ingress_file=k8s/ingress-prod.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_name=porty-prod-ingress" >> "$GITHUB_OUTPUT"
-          elif [ "${GITHUB_REF}" = "refs/heads/develop" ]; then
+          else
             echo "namespace=staging" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
             echo "ingress_file=k8s/ingress-staging.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_name=porty-staging-ingress" >> "$GITHUB_OUTPUT"
-          else
-            echo "This job should never run here"; exit 1
           fi
 
-      - name: Assert images present (block if missing)
+      - name: Assert images present
         run: |
           test -n "${{ needs.docker-api.outputs.image }}" || (echo "API image missing" && exit 1)
           test -n "${{ needs.docker-front.outputs.image }}" || (echo "Front image missing" && exit 1)
@@ -205,7 +232,8 @@ jobs:
           rm -f compose.yml
 
       - name: Ensure GHCR pull secret in target ns
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
@@ -226,10 +254,7 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-          # CONNECTION_STRING déjà exportée et masquée
-
           kubectl config set-context --current --namespace="$NS"
-
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
@@ -254,32 +279,28 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          # Nettoyage d’anciens ingresses "généraux"
           kubectl -n "$NS" delete ingress porty --ignore-not-found
           kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
-
           kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_file }}"
 
-      - name: Ensure Traefik entrypoints + correct issuer (idempotent)
+      - name: Ensure Traefik entrypoints + correct issuer
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           NAME="${{ steps.envsel.outputs.ingress_name }}"
-          kubectl -n "$NS" annotate ingress "$NAME" \
-            traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
-          kubectl -n "$NS" annotate ingress "$NAME" \
-            cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+          kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
+          kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
 
       - name: Drop middleware annotation if file missing (avoid 404)
         if: ${{ steps.envsel.outputs.namespace == 'staging' && steps.mw.outputs.have_mw == 'false' }}
         run: |
-          kubectl -n staging annotate ingress porty-staging-ingress \
-            traefik.ingress.kubernetes.io/router.middlewares- --overwrite
+          kubectl -n staging annotate ingress porty-staging-ingress traefik.ingress.kubernetes.io/router.middlewares- --overwrite
 
       - name: Sanity check
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" get deploy,svc,ingress -o wide
           kubectl -n "$NS" get endpoints porty porty-front || true

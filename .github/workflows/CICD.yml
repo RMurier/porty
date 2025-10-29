@@ -2,7 +2,7 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['**']     # Tous les pushes -> analyse; build/deploy filtrés dans les jobs
+    branches: ['**']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -13,7 +13,6 @@ concurrency:
 env:
   APP_NAME: porty
   FRONT_APP_NAME: porty-front
-  MAIN_SERVICE: api
   CONTAINER_PORT: "8080"
   HEALTH_PATH: "/"
   PROD_HOST: "murierromain.com"
@@ -31,25 +30,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: "8.0.x" }
-
       - uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: zulu
-
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
-
       - name: Frontend install
         working-directory: front
         run: npm ci
-
       - name: Frontend tests
         working-directory: front
         shell: bash
@@ -59,7 +52,6 @@ jobs:
           else
             echo "⚠️ Aucun test défini, étape ignorée."
           fi
-
       - name: SonarCloud begin
         shell: pwsh
         run: >
@@ -69,14 +61,12 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.sourceEncoding="UTF-8"
-
       - name: Build & Test backend
         working-directory: api
         run: |
           dotnet restore
           dotnet build -c Release
           dotnet test -c Release --no-build
-
       - name: SonarCloud end
         shell: pwsh
         run: >
@@ -91,13 +81,10 @@ jobs:
       image: ${{ steps.publish.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: "8.0.x" }
-
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
       - id: publish
         name: Publish .NET API & Assemble Image
         shell: bash
@@ -106,7 +93,6 @@ jobs:
           dotnet publish api -c Release -o publish/
           BASE_IMAGE="mcr.microsoft.com/dotnet/aspnet:8.0"
           IMAGE_TAG="ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-
           docker pull "$BASE_IMAGE"
           CID=$(docker create "$BASE_IMAGE")
           docker cp publish/. "$CID":/app/
@@ -115,7 +101,6 @@ jobs:
             --change='ENTRYPOINT ["dotnet","/app/api.dll"]' \
             "$CID" "$IMAGE_TAG"
           docker rm "$CID"
-
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
@@ -127,20 +112,15 @@ jobs:
       image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 20 }
-
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
       - name: Build frontend
         working-directory: front
         run: |
           npm ci
           npm run build
-
       - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
@@ -215,6 +195,16 @@ jobs:
           [ -n "$CONN" ] || { echo "❌ ConnectionStrings__DefaultConnection introuvable"; exit 1; }
           echo "connection_string=${CONN//%/%%}" >> $GITHUB_OUTPUT
 
+      - name: Ensure GHCR pull secret in target ns
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          kubectl -n "$NS" create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.TOKEN_GITHUB }}" \
+            --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+
       - name: Staging middleware
         if: steps.envsel.outputs.namespace == 'staging'
         run: kubectl apply -f k8s/middleware-staging-noindex.yaml
@@ -233,13 +223,11 @@ jobs:
           export HOSTNAME=${{ steps.envsel.outputs.host }}
           export CONNECTION_STRING='${{ steps.conn.outputs.connection_string }}'
 
-          # Deploy API + FRONT (manifests sans namespace -> on force -n)
           envsubst < k8s/deployment.yaml        | kubectl -n "$NS" apply -f -
           envsubst < k8s/service.yaml           | kubectl -n "$NS" apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl -n "$NS" apply -f -
           envsubst < k8s/service-front.yaml     | kubectl -n "$NS" apply -f -
 
-          # Ingress spécifique à l'environnement (namespace dans le fichier)
           kubectl apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
 
       - name: Rollout & status

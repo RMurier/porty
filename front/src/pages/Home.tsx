@@ -4,10 +4,9 @@ const Home: React.FC = () => {
   return (
     <section className="min-h-screen bg-gray-50 dark:bg-zinc-900 text-gray-900 dark:text-gray-100">
       <div className="container mx-auto px-4 py-20 lg:py-32">
-        {/* Hero section */}
         <div className="text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4">
-            Bonjour, je suis <span className="text-blue-600 dark:text-blue-400">Romain</span>
+            Bonjour, je suis <span className="text-blue-600 dark:text-blue-400">Romain...</span>
           </h1>
           <p className="text-lg sm:text-xl max-w-2xl mx-auto mb-8">
             Développeur full-stack passionné par la création d’applications web modernes avec React, .NET et SQL Server.
@@ -20,7 +19,6 @@ const Home: React.FC = () => {
           </a>
         </div>
 
-        {/* À propos / about section */}
         <div className="mt-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
           <div>
             <img
@@ -41,7 +39,6 @@ const Home: React.FC = () => {
           </div>
         </div>
 
-        {/* Compétences section */}
         <div className="mt-20">
           <h2 className="text-3xl font-semibold mb-8 text-center">Compétences</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -62,11 +59,9 @@ const Home: React.FC = () => {
           </div>
         </div>
 
-        {/* Projets récents */}
         <div className="mt-20">
           <h2 className="text-3xl font-semibold mb-8 text-center">Projets récents</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Exemple de projet */}
             <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition">
               <img
                 src="/assets/project-image.png"
@@ -84,7 +79,6 @@ const Home: React.FC = () => {
                 </a>
               </div>
             </div>
-            {/* Tu peux dupliquer pour d'autres projets */}
           </div>
         </div>
       </div>

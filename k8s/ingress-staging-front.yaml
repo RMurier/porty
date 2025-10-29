@@ -9,6 +9,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.middlewares: staging-noindex@kubernetescrd
 spec:
+  ingressClassName: traefik
   tls:
     - hosts: ["test.murierromain.com"]
       secretName: porty-staging-tls

@@ -297,6 +297,16 @@ jobs:
             echo "have_mw=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Cleanup legacy ingresses
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$NS" delete ingress porty --ignore-not-found
+          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
+          kubectl -n "$NS" delete ingress porty-${NS}-ingress --ignore-not-found
+
       - name: Apply environment Ingress (as-is)
         shell: bash
         env:

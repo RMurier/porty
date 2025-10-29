@@ -2,9 +2,13 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['**']
+    branches: ['**']     # Tous les pushes -> analyse; build/deploy filtrés dans les jobs
   pull_request:
     types: [opened, synchronize, reopened]
+
+concurrency:
+  group: porty-${{ github.ref_name }}
+  cancel-in-progress: true
 
 env:
   APP_NAME: porty
@@ -143,20 +147,13 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
-          # Prépare le contexte de build EXACTEMENT sur le contenu du build
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-
-          # Dockerfile dans le même dossier (contexte = docker-tmp/nginx)
           cat <<'EOF' > docker-tmp/nginx/Dockerfile
           FROM nginx:alpine
           COPY . /usr/share/nginx/html
           EXPOSE 80
           EOF
-
-          echo "📦 Contenu copié dans docker-tmp/nginx :"
-          ls -la docker-tmp/nginx | head -n 50 || true
-
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -169,25 +166,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup kubectl
+      - name: Setup kubectl & tools
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
           kubectl version --client
+          sudo apt-get update -y
+          sudo apt-get install -y gettext-base
+          YQ_VERSION=v4.44.3
+          sudo curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
 
-      - name: Namespaces
+      - name: Ensure namespaces
         run: |
           kubectl apply -f k8s/namespace-prod.yaml
           kubectl apply -f k8s/namespace-staging.yaml
 
-      - name: Select namespace
+      - name: Select environment
         id: envsel
+        shell: bash
         run: |
           if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "namespace=production" >> $GITHUB_OUTPUT
+            echo "namespace=prod" >> $GITHUB_OUTPUT
+            echo "host=${{ env.PROD_HOST }}" >> $GITHUB_OUTPUT
+            echo "ingress=ingress-prod.yaml" >> $GITHUB_OUTPUT
           else
             echo "namespace=staging" >> $GITHUB_OUTPUT
+            echo "host=${{ env.STAGING_HOST }}" >> $GITHUB_OUTPUT
+            echo "ingress=ingress-staging.yaml" >> $GITHUB_OUTPUT
           fi
 
       - name: Apply ClusterIssuer
@@ -198,28 +205,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          YQ_VERSION=v4.44.3
-          sudo curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-
           if [ "${GITHUB_REF_NAME}" = "master" ]; then
             echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > compose.yml
           else
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
           fi
-
-          echo "🧩 compose.yml aperçu :"
-          head -n 40 compose.yml || true
-
+          echo "🧩 compose.yml aperçu :"; head -n 40 compose.yml || true
           CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
-          if [ -z "$CONN" ] || [ "$CONN" = "null" ]; then
-            echo "❌ ConnectionStrings__DefaultConnection introuvable"; exit 1
-          fi
-          CONN_ESC="${CONN//%/%%}"
-          echo "connection_string=$CONN_ESC" >> $GITHUB_OUTPUT
+          [ -n "$CONN" ] || { echo "❌ ConnectionStrings__DefaultConnection introuvable"; exit 1; }
+          echo "connection_string=${CONN//%/%%}" >> $GITHUB_OUTPUT
 
-      - name: Apply manifests (envsubst)
+      - name: Staging middleware
+        if: steps.envsel.outputs.namespace == 'staging'
+        run: kubectl apply -f k8s/middleware-staging-noindex.yaml
+
+      - name: Apply app manifests
         shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           export APP_NAME=${{ env.APP_NAME }}
           export FRONT_APP_NAME=${{ env.FRONT_APP_NAME }}
@@ -227,26 +230,20 @@ jobs:
           export IMAGE=${{ needs.docker-api.outputs.image }}
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
-
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            export HOSTNAME=${{ env.PROD_HOST }}
-          else
-            export HOSTNAME=${{ env.STAGING_HOST }}
-          fi
-
+          export HOSTNAME=${{ steps.envsel.outputs.host }}
           export CONNECTION_STRING='${{ steps.conn.outputs.connection_string }}'
 
-          echo "🏷️ Host: $HOSTNAME"
-          echo "📦 API image: $IMAGE"
-          echo "📦 FRONT image: $FRONT_IMAGE"
+          # Deploy API + FRONT (manifests sans namespace -> on force -n)
+          envsubst < k8s/deployment.yaml        | kubectl -n "$NS" apply -f -
+          envsubst < k8s/service.yaml           | kubectl -n "$NS" apply -f -
+          envsubst < k8s/deployment-front.yaml  | kubectl -n "$NS" apply -f -
+          envsubst < k8s/service-front.yaml     | kubectl -n "$NS" apply -f -
 
-          for f in k8s/*.yaml; do
-            echo "📄 $f"
-            envsubst < "$f" | kubectl -n ${{ steps.envsel.outputs.namespace }} apply -f -
-          done
+          # Ingress spécifique à l'environnement (namespace dans le fichier)
+          kubectl apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
 
-      - name: Rollout & logs
+      - name: Rollout & status
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
-          kubectl -n ${{ steps.envsel.outputs.namespace }} get pods -o wide
+          kubectl -n ${{ steps.envsel.outputs.namespace }} get ingress,pods,svc -o wide

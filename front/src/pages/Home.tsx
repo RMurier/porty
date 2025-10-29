@@ -7,7 +7,7 @@ const Home: React.FC = () => {
         {/* Hero section */}
         <div className="text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4">
-            Bonjour, je suis <span className="text-blue-600 dark:text-blue-400">[Votre Nom]</span>
+            Bonjour, je suis <span className="text-blue-600 dark:text-blue-400">Romain</span>
           </h1>
           <p className="text-lg sm:text-xl max-w-2xl mx-auto mb-8">
             Développeur full-stack passionné par la création d’applications web modernes avec React, .NET et SQL Server.

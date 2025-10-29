@@ -373,10 +373,22 @@ jobs:
           fi
           [ -n "$LB" ] || { echo "No LB address for Traefik"; kubectl -n kube-system get svc traefik -o wide; exit 1; }
 
-          echo "→ curl http://$LB/ (Host: $HOST)"
-          OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/")
+          echo "→ curl http://$LB/index.html (Host: $HOST)"
+          OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/index.html")
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
           SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
           echo "HTTP $CODE (Server: ${SERVER:-unknown}) for $HOST via $LB"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
+
+      - name: Show applied ingresses
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$NS" get ingress -o custom-columns=NAME:.metadata.name,HOSTS:.spec.rules[*].host,CLASS:.spec.ingressClassName,ENTRYPOINTS:.metadata.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints,TLS:.spec.tls[*].secretName --no-headers
+          echo "----"
+          for i in $(kubectl -n "$NS" get ingress -o name); do
+            echo "# $i"; kubectl -n "$NS" get "$i" -o yaml | sed -n '1,120p'; echo; 
+          done

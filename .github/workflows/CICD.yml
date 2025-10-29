@@ -5,10 +5,7 @@ on:
     branches:
       - '**'
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: porty-${{ github.ref }}
@@ -33,29 +30,18 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
+        with: { node-version: 20 }
       - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
+        with: { dotnet-version: '8.0.x' }
       - uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-
+        with: { java-version: 17, distribution: zulu }
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
-
       - name: Frontend install
         working-directory: front
         run: npm ci
-
       - name: Frontend tests
         working-directory: front
         shell: bash
@@ -65,7 +51,6 @@ jobs:
           else
             echo "No frontend tests, skipping."
           fi
-
       - name: SonarCloud begin
         shell: pwsh
         run: >
@@ -75,14 +60,12 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.sourceEncoding="UTF-8"
-
       - name: Build & Test backend
         working-directory: api
         run: |
           dotnet restore
           dotnet build -c Release
           dotnet test -c Release --no-build
-
       - name: SonarCloud end
         shell: pwsh
         run: >
@@ -97,14 +80,10 @@ jobs:
       image: ${{ steps.publish.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
+        with: { dotnet-version: '8.0.x' }
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
       - id: publish
         name: Publish .NET API & Assemble Image
         shell: bash
@@ -132,20 +111,15 @@ jobs:
       image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
+        with: { node-version: 20 }
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
       - name: Build frontend
         working-directory: front
         run: |
           npm ci
           npm run build
-
       - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
@@ -154,7 +128,6 @@ jobs:
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-
           # nginx config SPA fallback
           cat > docker-tmp/nginx/default.conf <<'CONF'
           server {
@@ -167,7 +140,6 @@ jobs:
             }
           }
           CONF
-
           # Dockerfile
           cat > docker-tmp/nginx/Dockerfile <<'EOF'
           FROM nginx:alpine
@@ -175,10 +147,7 @@ jobs:
           COPY default.conf /etc/nginx/conf.d/default.conf
           EXPOSE 80
           EOF
-
-          # Sanity: index.html doit exister
           test -f docker-tmp/nginx/index.html || { echo "❌ front/dist/index.html manquant"; ls -la docker-tmp/nginx | head -n 50; exit 1; }
-
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -186,9 +155,7 @@ jobs:
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest
-    needs:
-      - docker-api
-      - docker-front
+    needs: [docker-api, docker-front]
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master') }}
     steps:
       - uses: actions/checkout@v4
@@ -261,8 +228,7 @@ jobs:
           rm -f compose.yml
 
       - name: Ensure GHCR pull secret in target ns
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           kubectl -n "$NS" create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
@@ -272,8 +238,7 @@ jobs:
 
       - name: Apply app manifests (Deployments & Services)
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
           export APP_NAME=${{ env.APP_NAME }}
@@ -283,31 +248,15 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-
           kubectl config set-context --current --namespace="$NS"
-
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
           envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
-      - name: Staging middleware (apply if present)
-        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
-        id: mw
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f k8s/middleware-staging-noindex.yaml ]; then
-            kubectl -n staging apply -f k8s/middleware-staging-noindex.yaml
-            echo "have_mw=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "have_mw=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Cleanup legacy ingresses
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
           kubectl -n "$NS" delete ingress porty --ignore-not-found
@@ -316,52 +265,46 @@ jobs:
 
       - name: Apply environment Ingress (as-is)
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
           kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front }}"
           kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_api }}"
-          # front http spécifique à l'environnement (si le fichier existe)
           if [ -f "${{ steps.envsel.outputs.ingress_front_http }}" ]; then
             kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front_http }}"
           fi
 
+      # ⚠️ IMPORTANT : pas de Middleware CRD → on supprime TOUTE annotation middleware
+      - name: Drop middleware annotation on staging front (always)
+        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
+        run: |
+          kubectl -n staging annotate ingress porty-staging-front \
+            traefik.ingress.kubernetes.io/router.middlewares- --overwrite || true
+
       - name: Ensure Ingress class + entrypoints + issuer
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
-          # front https + api : web,websecure
           for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
             kubectl -n "$NS" annotate ingress "$NAME" kubernetes.io/ingress.class=traefik --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite || true
           done
-          # front http : web only (si présent)
           if kubectl -n "$NS" get ingress "${{ steps.envsel.outputs.ingress_http_name }}" >/dev/null 2>&1; then
             kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" kubernetes.io/ingress.class=traefik --overwrite
             kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" traefik.ingress.kubernetes.io/router.entrypoints=web --overwrite
           fi
 
-      - name: Drop middleware annotation if file missing (staging)
-        if: ${{ steps.envsel.outputs.namespace == 'staging' && steps.mw.outputs.have_mw == 'false' }}
-        run: |
-          kubectl -n staging annotate ingress porty-staging-front \
-            traefik.ingress.kubernetes.io/router.middlewares- --overwrite
-
       - name: Sanity check
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           kubectl -n "$NS" get deploy,svc,ingress -o wide
           kubectl -n "$NS" get endpoints porty porty-front || true
 
       - name: Local check via port-forward (front Service)
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
           kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
@@ -384,8 +327,6 @@ jobs:
             LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           fi
           [ -n "$LB" ] || { echo "No LB address for Traefik"; kubectl -n kube-system get svc traefik -o wide; exit 1; }
-
-          echo "→ curl http://$LB/index.html (Host: $HOST)"
           OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/index.html")
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
@@ -421,8 +362,7 @@ jobs:
 
       - name: Show applied ingresses
         shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         run: |
           set -euo pipefail
           kubectl -n "$NS" get ingress -o custom-columns=NAME:.metadata.name,HOSTS:.spec.rules[*].host,CLASS:.spec.ingressClassName,ENTRYPOINTS:.metadata.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints,TLS:.spec.tls[*].secretName --no-headers

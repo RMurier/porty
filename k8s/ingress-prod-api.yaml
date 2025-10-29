@@ -19,3 +19,13 @@ spec:
                 name: porty
                 port:
                   number: 80
+    - host: www.murierromain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: porty
+                port:
+                  number: 80

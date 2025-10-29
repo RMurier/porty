@@ -220,14 +220,21 @@ jobs:
             echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-prod-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-prod-api.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_front_http=k8s/ingress-prod-front-http.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_names=porty-prod-front porty-prod-api" >> "$GITHUB_OUTPUT"
+            echo "ingress_http_name=porty-prod-front-http" >> "$GITHUB_OUTPUT"
           else
             echo "namespace=staging" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-staging-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-staging-api.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_front_http=k8s/ingress-staging-front-http.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_names=porty-staging-front porty-staging-api" >> "$GITHUB_OUTPUT"
+            echo "ingress_http_name=porty-staging-front-http" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Show Traefik entrypoints (names)
+        run: kubectl -n kube-system get svc traefik -o jsonpath='{range .spec.ports[*]}{.name}:{.port}{"\n"}{end}'
 
       - name: Assert images present
         run: |
@@ -313,28 +320,32 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          # ménage anciens noms
-          kubectl -n "$NS" delete ingress porty --ignore-not-found
-          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
-          kubectl -n "$NS" delete ingress porty-${NS}-ingress --ignore-not-found
-
           kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front }}"
           kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_api }}"
-          kubectl -n "$NS" apply -f k8s/ingress-staging-front-http.yaml
+          # front http spécifique à l'environnement (si le fichier existe)
+          if [ -f "${{ steps.envsel.outputs.ingress_front_http }}" ]; then
+            kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front_http }}"
+          fi
 
-      - name: Ensure Ingress class + entrypoints + issuer (both)
+      - name: Ensure Ingress class + entrypoints + issuer
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
+          # front https + api : web,websecure
           for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
             kubectl -n "$NS" annotate ingress "$NAME" kubernetes.io/ingress.class=traefik --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite || true
           done
+          # front http : web only (si présent)
+          if kubectl -n "$NS" get ingress "${{ steps.envsel.outputs.ingress_http_name }}" >/dev/null 2>&1; then
+            kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" kubernetes.io/ingress.class=traefik --overwrite
+            kubectl -n "$NS" annotate ingress "${{ steps.envsel.outputs.ingress_http_name }}" traefik.ingress.kubernetes.io/router.entrypoints=web --overwrite
+          fi
 
-      - name: Drop middleware annotation if file missing (avoid 404)
+      - name: Drop middleware annotation if file missing (staging)
         if: ${{ steps.envsel.outputs.namespace == 'staging' && steps.mw.outputs.have_mw == 'false' }}
         run: |
           kubectl -n staging annotate ingress porty-staging-front \
@@ -353,11 +364,11 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          kubectl -n "$NS" rollout status deploy/porty-front --timeout=120s
-          kubectl -n "$NS" port-forward svc/porty-front 18080:80 >/dev/null 2>&1 &
+          kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
+          kubectl -n "$NS" port-forward svc/${{ env.FRONT_APP_NAME }} 18080:80 >/dev/null 2>&1 &
           PF_PID=$!
           for i in {1..20}; do nc -z 127.0.0.1 18080 && break || sleep 0.3; done
-          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/)
+          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html)
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
           case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "❌ Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
@@ -382,6 +393,32 @@ jobs:
           echo "HTTP $CODE (Server: ${SERVER:-unknown}) for $HOST via $LB"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
 
+      - name: Wait for TLS certificate (if present)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NS="${{ steps.envsel.outputs.namespace }}"
+          CERT_NAME="porty-${NS}-tls"
+          if kubectl -n "$NS" get certificate "$CERT_NAME" >/dev/null 2>&1; then
+            kubectl -n "$NS" wait --for=condition=Ready "certificate/$CERT_NAME" --timeout=300s || {
+              echo "⚠️ Cert $CERT_NAME not ready yet, continuing."
+            }
+          else
+            echo "ℹ️ No Certificate $CERT_NAME resource found, skipping wait."
+          fi
+
+      - name: Smoke test Ingress (HTTPS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST="${{ steps.envsel.outputs.host }}"
+          OUT=$(curl -sk -D - -o /dev/null "https://$HOST/index.html")
+          echo "$OUT"
+          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
+          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
+          echo "HTTPS $CODE (Server: ${SERVER:-unknown}) for $HOST"
+          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
+
       - name: Show applied ingresses
         shell: bash
         env:
@@ -391,5 +428,5 @@ jobs:
           kubectl -n "$NS" get ingress -o custom-columns=NAME:.metadata.name,HOSTS:.spec.rules[*].host,CLASS:.spec.ingressClassName,ENTRYPOINTS:.metadata.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints,TLS:.spec.tls[*].secretName --no-headers
           echo "----"
           for i in $(kubectl -n "$NS" get ingress -o name); do
-            echo "# $i"; kubectl -n "$NS" get "$i" -o yaml | sed -n '1,120p'; echo; 
+            echo "# $i"; kubectl -n "$NS" get "$i" -o yaml | sed -n '1,120p'; echo;
           done

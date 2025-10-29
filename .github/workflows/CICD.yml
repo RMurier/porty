@@ -29,20 +29,29 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: "8.0.x" }
+        with:
+          dotnet-version: '8.0.x'
+
       - uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: zulu
+
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
+
       - name: Frontend install
         working-directory: front
         run: npm ci
+
       - name: Frontend tests
         working-directory: front
         shell: bash
@@ -52,6 +61,7 @@ jobs:
           else
             echo "No frontend tests, skipping."
           fi
+
       - name: SonarCloud begin
         shell: pwsh
         run: >
@@ -61,12 +71,14 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.sourceEncoding="UTF-8"
+
       - name: Build & Test backend
         working-directory: api
         run: |
           dotnet restore
           dotnet build -c Release
           dotnet test -c Release --no-build
+
       - name: SonarCloud end
         shell: pwsh
         run: >
@@ -76,15 +88,19 @@ jobs:
   docker-api:
     name: 🐳 Build & Push API Image
     runs-on: ubuntu-latest
-    if: github.ref_name == 'develop' || github.ref_name == 'master'
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master') }}
     outputs:
       image: ${{ steps.publish.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: "8.0.x" }
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - id: publish
         name: Publish .NET API & Assemble Image
         shell: bash
@@ -102,25 +118,30 @@ jobs:
             "$CID" "$IMAGE_TAG"
           docker rm "$CID"
           docker push "$IMAGE_TAG"
-          echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
   docker-front:
     name: 🌐 Build & Push Frontend Image
     runs-on: ubuntu-latest
-    if: github.ref_name == 'develop' || github.ref_name == 'master'
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master') }}
     outputs:
       image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Build frontend
         working-directory: front
         run: |
           npm ci
           npm run build
+
       - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
@@ -136,13 +157,13 @@ jobs:
           EOF
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
-          echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: 🚀 Deploy to K3S
     runs-on: ubuntu-latest
     needs: [docker-api, docker-front]
-    if: github.ref_name == 'develop' || github.ref_name == 'master'
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -163,39 +184,41 @@ jobs:
           kubectl apply -f k8s/namespace-prod.yaml
           kubectl apply -f k8s/namespace-staging.yaml
 
-      - name: Select environment
+      - name: Select environment (strict)
         id: envsel
         shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "namespace=prod" >> $GITHUB_OUTPUT
-            echo "host=${{ env.PROD_HOST }}" >> $GITHUB_OUTPUT
-            echo "ingress=ingress-prod.yaml" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
+            echo "namespace=prod" >> "$GITHUB_OUTPUT"
+            echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
+            echo "ingress=ingress-prod.yaml" >> "$GITHUB_OUTPUT"
+          elif [ "${GITHUB_REF}" = "refs/heads/develop" ]; then
+            echo "namespace=staging" >> "$GITHUB_OUTPUT"
+            echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
+            echo "ingress=ingress-staging.yaml" >> "$GITHUB_OUTPUT"
           else
-            echo "namespace=staging" >> $GITHUB_OUTPUT
-            echo "host=${{ env.STAGING_HOST }}" >> $GITHUB_OUTPUT
-            echo "ingress=ingress-staging.yaml" >> $GITHUB_OUTPUT
+            echo "This job should never run here"
+            exit 1
           fi
 
-      # 🔒 Récupère la conn string depuis compose B64 (sans rien afficher) + masque
       - name: Load DB connection string (masked)
         id: conn
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
+          if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
             echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > compose.yml
           else
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
           fi
           CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
           if [ -z "$CONN" ] || [ "$CONN" = "null" ]; then
-            echo "Missing ConnectionStrings__DefaultConnection in compose"; exit 1
+            echo "Missing ConnectionStrings__DefaultConnection"
+            exit 1
           fi
           echo "::add-mask::$CONN"
-          # Met à dispo pour les étapes suivantes SANS l'imprimer
           printf 'CONNECTION_STRING=%s\n' "$CONN" >> "$GITHUB_ENV"
-          # Nettoyage silencieux
           rm -f compose.yml
 
       - name: Ensure GHCR pull secret in target ns
@@ -209,14 +232,15 @@ jobs:
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
       - name: Staging middleware
-        if: steps.envsel.outputs.namespace == 'staging'
+        if: ${{ steps.envsel.outputs.namespace == 'staging' }}
         run: kubectl apply -f k8s/middleware-staging-noindex.yaml
 
-      - name: Apply app manifests (no secrets printed)
+      - name: Apply app manifests (target namespace ONLY)
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           export APP_NAME=${{ env.APP_NAME }}
           export FRONT_APP_NAME=${{ env.FRONT_APP_NAME }}
           export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
@@ -224,17 +248,29 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-          # CONNECTION_STRING déjà chargé et masqué via $GITHUB_ENV
+          # CONNECTION_STRING already exported via $GITHUB_ENV
 
-          envsubst < k8s/deployment.yaml        | kubectl -n "$NS" apply -f -
-          envsubst < k8s/service.yaml           | kubectl -n "$NS" apply -f -
-          envsubst < k8s/deployment-front.yaml  | kubectl -n "$NS" apply -f -
-          envsubst < k8s/service-front.yaml     | kubectl -n "$NS" apply -f -
+          # Force context to the chosen namespace
+          kubectl config set-context --current --namespace="$NS"
+
+          envsubst < k8s/deployment.yaml        | kubectl apply -f -
+          envsubst < k8s/service.yaml           | kubectl apply -f -
+          envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
+          envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
           kubectl apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
+
+      - name: Sanity check (no cross-env changes)
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          echo "===== Current namespace ($NS) ====="
+          kubectl -n "$NS" get deploy,svc,ingress -o wide
+          if [ "$NS" = "prod" ]; then OTHER=staging; else OTHER=prod; fi
+          echo "===== Other namespace ($OTHER) ====="
+          kubectl -n "$OTHER" get deploy,svc,ingress -o name || true
 
       - name: Rollout & status
         run: |
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
           kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
-          kubectl -n ${{ steps.envsel.outputs.namespace }} get ingress,pods,svc -o wide

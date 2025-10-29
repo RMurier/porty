@@ -21,11 +21,11 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: porty-api
+                name: ${APP_NAME}
                 port: { number: 80 }
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: porty-front
+                name: ${FRONT_APP_NAME}
                 port: { number: 80 }

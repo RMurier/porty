@@ -10,7 +10,7 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: ["murierromain.com", "www.murierromain.com"]
+    - hosts: ["murierromain.com","www.murierromain.com"]
       secretName: porty-prod-tls
   rules:
     - host: murierromain.com
@@ -20,14 +20,16 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: ${APP_NAME}
-                port: { number: 80 }
+                name: porty
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: ${FRONT_APP_NAME}
-                port: { number: 80 }
+                name: porty-front
+                port:
+                  number: 80
     - host: www.murierromain.com
       http:
         paths:
@@ -35,5 +37,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: ${FRONT_APP_NAME}
-                port: { number: 80 }
+                name: porty-front
+                port:
+                  number: 80

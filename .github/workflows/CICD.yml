@@ -7,7 +7,7 @@ on:
     types: [opened, synchronize, reopened]
 
 concurrency:
-  group: porty-${{ github.ref_name }}
+  group: porty-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -250,14 +250,20 @@ jobs:
           export HOSTNAME=${{ steps.envsel.outputs.host }}
           # CONNECTION_STRING already exported via $GITHUB_ENV
 
-          # Force context to the chosen namespace
+          # Force le contexte pour éviter toute confusion de namespace
           kubectl config set-context --current --namespace="$NS"
 
+          # API & FRONT (envsubst)
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
           envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
+          # Nettoyage des anciens ingresses parasites éventuels dans ce ns
+          kubectl -n "$NS" delete ingress porty --ignore-not-found
+          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
+
+          # Ingress SANS envsubst (fichier sans placeholder)
           kubectl apply -f "k8s/${{ steps.envsel.outputs.ingress }}"
 
       - name: Sanity check (no cross-env changes)

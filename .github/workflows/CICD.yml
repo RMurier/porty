@@ -50,7 +50,7 @@ jobs:
           if npm run | grep -q "test"; then
             npm run test -- --coverage --coverage.reporter=lcov
           else
-            echo "⚠️ Aucun test défini, étape ignorée."
+            echo "No frontend tests, skipping."
           fi
       - name: SonarCloud begin
         shell: pwsh
@@ -177,10 +177,8 @@ jobs:
             echo "ingress=ingress-staging.yaml" >> $GITHUB_OUTPUT
           fi
 
-      - name: Apply ClusterIssuer
-        run: kubectl apply -f k8s/cluster-issuer.yaml
-
-      - name: Decode compose & extract connection string
+      # 🔒 Récupère la conn string depuis compose B64 (sans rien afficher) + masque
+      - name: Load DB connection string (masked)
         id: conn
         shell: bash
         run: |
@@ -190,10 +188,15 @@ jobs:
           else
             echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
           fi
-          echo "🧩 compose.yml aperçu :"; head -n 40 compose.yml || true
           CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
-          [ -n "$CONN" ] || { echo "❌ ConnectionStrings__DefaultConnection introuvable"; exit 1; }
-          echo "connection_string=${CONN//%/%%}" >> $GITHUB_OUTPUT
+          if [ -z "$CONN" ] || [ "$CONN" = "null" ]; then
+            echo "Missing ConnectionStrings__DefaultConnection in compose"; exit 1
+          fi
+          echo "::add-mask::$CONN"
+          # Met à dispo pour les étapes suivantes SANS l'imprimer
+          printf 'CONNECTION_STRING=%s\n' "$CONN" >> "$GITHUB_ENV"
+          # Nettoyage silencieux
+          rm -f compose.yml
 
       - name: Ensure GHCR pull secret in target ns
         env:
@@ -209,7 +212,7 @@ jobs:
         if: steps.envsel.outputs.namespace == 'staging'
         run: kubectl apply -f k8s/middleware-staging-noindex.yaml
 
-      - name: Apply app manifests
+      - name: Apply app manifests (no secrets printed)
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
@@ -221,7 +224,7 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-          export CONNECTION_STRING='${{ steps.conn.outputs.connection_string }}'
+          # CONNECTION_STRING déjà chargé et masqué via $GITHUB_ENV
 
           envsubst < k8s/deployment.yaml        | kubectl -n "$NS" apply -f -
           envsubst < k8s/service.yaml           | kubectl -n "$NS" apply -f -

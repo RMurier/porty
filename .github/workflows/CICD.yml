@@ -145,11 +145,6 @@ jobs:
         run: |
           npm ci
           npm run build
-    
-      - name: Assert front build has index.html
-        working-directory: front/dist
-        run: |
-          test -f index.html || { echo "❌ front/dist/index.html manquant"; ls -la; exit 1; }
 
       - name: Build NGINX image (serve React build at /)
         id: push
@@ -159,11 +154,31 @@ jobs:
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-          cat <<'EOF' > docker-tmp/nginx/Dockerfile
+
+          # nginx config SPA fallback
+          cat > docker-tmp/nginx/default.conf <<'CONF'
+          server {
+            listen 80;
+            server_name _;
+            root /usr/share/nginx/html;
+            index index.html;
+            location / {
+              try_files $uri /index.html;
+            }
+          }
+          CONF
+
+          # Dockerfile
+          cat > docker-tmp/nginx/Dockerfile <<'EOF'
           FROM nginx:alpine
           COPY . /usr/share/nginx/html
+          COPY default.conf /etc/nginx/conf.d/default.conf
           EXPOSE 80
           EOF
+
+          # Sanity: index.html doit exister
+          test -f docker-tmp/nginx/index.html || { echo "❌ front/dist/index.html manquant"; ls -la docker-tmp/nginx | head -n 50; exit 1; }
+
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -203,13 +218,15 @@ jobs:
           if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
             echo "namespace=prod" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
-            echo "ingress_file=k8s/ingress-prod.yaml" >> "$GITHUB_OUTPUT"
-            echo "ingress_name=porty-prod-ingress" >> "$GITHUB_OUTPUT"
+            echo "ingress_front=k8s/ingress-prod-front.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_api=k8s/ingress-prod-api.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_names=porty-prod-front porty-prod-api" >> "$GITHUB_OUTPUT"
           else
             echo "namespace=staging" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
-            echo "ingress_file=k8s/ingress-staging.yaml" >> "$GITHUB_OUTPUT"
-            echo "ingress_name=porty-staging-ingress" >> "$GITHUB_OUTPUT"
+            echo "ingress_front=k8s/ingress-staging-front.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_api=k8s/ingress-staging-api.yaml" >> "$GITHUB_OUTPUT"
+            echo "ingress_names=porty-staging-front porty-staging-api" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Assert images present
@@ -259,7 +276,9 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
+
           kubectl config set-context --current --namespace="$NS"
+
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
@@ -284,24 +303,31 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
+          # ménage anciens noms
           kubectl -n "$NS" delete ingress porty --ignore-not-found
           kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
-          kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_file }}"
+          kubectl -n "$NS" delete ingress porty-${NS}-ingress --ignore-not-found
 
-      - name: Ensure Traefik entrypoints + correct issuer
+          kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_front }}"
+          kubectl -n "$NS" apply -f "${{ steps.envsel.outputs.ingress_api }}"
+
+      - name: Ensure Ingress class + entrypoints + issuer (both)
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          NAME="${{ steps.envsel.outputs.ingress_name }}"
-          kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
-          kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+          for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
+            kubectl -n "$NS" annotate ingress "$NAME" kubernetes.io/ingress.class=traefik --overwrite
+            kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
+            kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite || true
+          done
 
       - name: Drop middleware annotation if file missing (avoid 404)
         if: ${{ steps.envsel.outputs.namespace == 'staging' && steps.mw.outputs.have_mw == 'false' }}
         run: |
-          kubectl -n staging annotate ingress porty-staging-ingress traefik.ingress.kubernetes.io/router.middlewares- --overwrite
+          kubectl -n staging annotate ingress porty-staging-front \
+            traefik.ingress.kubernetes.io/router.middlewares- --overwrite
 
       - name: Sanity check
         env:
@@ -309,11 +335,6 @@ jobs:
         run: |
           kubectl -n "$NS" get deploy,svc,ingress -o wide
           kubectl -n "$NS" get endpoints porty porty-front || true
-
-      - name: Rollout & status
-        run: |
-          kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.APP_NAME }} --timeout=180s || true
-          kubectl -n ${{ steps.envsel.outputs.namespace }} rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=180s || true
 
       - name: Local check via port-forward (front Service)
         shell: bash
@@ -324,12 +345,12 @@ jobs:
           kubectl -n "$NS" rollout status deploy/porty-front --timeout=120s
           kubectl -n "$NS" port-forward svc/porty-front 18080:80 >/dev/null 2>&1 &
           PF_PID=$!
-          # attend l’ouverture du port
           for i in {1..20}; do nc -z 127.0.0.1 18080 && break || sleep 0.3; done
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/index.html || true)
-          echo "port-forward front → /index.html => $CODE"
+          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/)
+          echo "$OUT"
+          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
+          case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "❌ Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
           kill $PF_PID || true
-          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) echo "❌ Nginx/Service renvoie $CODE"; exit 1 ;; esac
 
       - name: Smoke test Ingress (HTTP)
         shell: bash

@@ -33,21 +33,25 @@ Deux environnements :
 ```mermaid
 flowchart LR
   U[Utilisateur] --> DNS[(DNS)]
-  DNS --> LB[Traefik LoadBalancer (kube-system/svc/traefik)]
-  LB -->|Host: test.murierromain.com| ING_STG_API[Ingress: porty-staging-api (/api)]
-  LB -->|Host: test.murierromain.com| ING_STG_FRONT[Ingress: porty-staging-front (/)]
-  LB -->|Host: murierromain.com| ING_PROD_API[Ingress: porty-prod-api (/api)]
-  LB -->|Host: murierromain.com| ING_PROD_FRONT[Ingress: porty-prod-front (/)]
+  DNS --> LB[Traefik LB]
 
-  ING_STG_API --> SVC_STG_API[Service staging/porty :80]
-  ING_STG_FRONT --> SVC_STG_FRONT[Service staging/porty-front :80]
-  ING_PROD_API --> SVC_PROD_API[Service prod/porty :80]
-  ING_PROD_FRONT --> SVC_PROD_FRONT[Service prod/porty-front :80]
+  %% Routes par hôte
+  LB -- Host: test.murierromain.com --> ING_STG_API[Ingress porty-staging-api (/api)]
+  LB -- Host: test.murierromain.com --> ING_STG_FRONT[Ingress porty-staging-front (/)]
+  LB -- Host: murierromain.com --> ING_PROD_API[Ingress porty-prod-api (/api)]
+  LB -- Host: murierromain.com --> ING_PROD_FRONT[Ingress porty-prod-front (/)]
 
-  SVC_STG_API --> POD_STG_API[Deployment porty (.NET 8, :8080)]
-  SVC_STG_FRONT --> POD_STG_FRONT[Deployment porty-front (NGINX :80)]
-  SVC_PROD_API --> POD_PROD_API[Deployment porty (.NET 8, :8080)]
-  SVC_PROD_FRONT --> POD_PROD_FRONT[Deployment porty-front (NGINX :80)]
+  %% Staging
+  ING_STG_API --> SVC_STG_API[Service porty :80]
+  ING_STG_FRONT --> SVC_STG_FRONT[Service porty-front :80]
+  SVC_STG_API --> DEP_STG_API[Deployment porty (.NET 8 :8080)]
+  SVC_STG_FRONT --> DEP_STG_FRONT[Deployment porty-front (NGINX :80)]
+
+  %% Prod
+  ING_PROD_API --> SVC_PROD_API[Service porty :80]
+  ING_PROD_FRONT --> SVC_PROD_FRONT[Service porty-front :80]
+  SVC_PROD_API --> DEP_PROD_API[Deployment porty (.NET 8 :8080)]
+  SVC_PROD_FRONT --> DEP_PROD_FRONT[Deployment porty-front (NGINX :80)]
 ```
 
 - **Routage** :

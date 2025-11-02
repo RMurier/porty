@@ -1,193 +1,300 @@
 # Porty
 
-A full-stack project with an **ASP.NET Core (.NET 8) API** and a **Vite (Node 20) Frontend**, orchestrated with **Docker Compose** and **SQL Server**.
+Portfolio full-stack composé de :
+- **Frontend** : React + TypeScript, servi statiquement par **NGINX**.
+- **API** : .NET 8 (Code First).
+- **Infra** : **K3s** (Kubernetes), **Traefik** (Ingress), **cert-manager** (TLS), **GHCR** (registry), **GitHub Actions** (CI/CD).
 
-- **Development**: hot reload for API, HTTPS locally.
-- **Production (local compose)**: API via **HTTPS on `:8080`**, Front via **HTTPS on `:443`**, SQL Server isolated.
-
----
-
-## Stack
-
-- **API**: ASP.NET Core (.NET 8) — `api/`
-- **Front**: Vite (Node 20) / React (v19) — `front/`
-- **Style**: CSS / TailWind (v4) / Framer Motion / Lucide React
-- **DB**: SQL Server 2022 (container)
-- **Orchestration**: Docker Compose
-- **TLS**: Dev certificate mounted into containers
+Deux environnements :
+- **staging** → `test.murierromain.com` (branche `develop`)
+- **production** → `murierromain.com` (branche `master`)
 
 ---
 
-## Repository layout (overview)
+## Sommaire
+
+1. [Architecture](#architecture)
+2. [Arborescence](#arborescence)
+3. [Prérequis](#prérequis)
+4. [Installation locale](#installation-locale)
+5. [CI/CD GitHub Actions](#cicd-github-actions)
+6. [Déploiement Kubernetes](#déploiement-kubernetes)
+7. [DNS et TLS](#dns-et-tls)
+8. [Secrets GitHub et Base64](#secrets-github-et-base64)
+9. [Debut](#debug)
+10. [Commandes utiles](#commandes-utiles)
+
+---
+
+## Architecture
+
+### Vue d’ensemble (Kubernetes)
+
+> Diagramme **compat GitHub**
+
+```mermaid
+flowchart LR
+  U[Utilisateur] --> DNS[(DNS)]
+  DNS --> LB[Traefik LoadBalancer]
+
+  subgraph STAGING[Namespace staging]
+    H_STG[Host test.murierromain.com]
+    ING_STG_API[Ingress porty-staging-api]
+    ING_STG_FRONT[Ingress porty-staging-front]
+    SVC_STG_API[Service porty 80]
+    SVC_STG_FRONT[Service porty-front 80]
+    DEP_STG_API[Deployment porty dotnet 8080]
+    DEP_STG_FRONT[Deployment porty-front nginx 80]
+    ING_STG_API --> SVC_STG_API --> DEP_STG_API
+    ING_STG_FRONT --> SVC_STG_FRONT --> DEP_STG_FRONT
+  end
+
+  subgraph PROD[Namespace prod]
+    H_PROD[Host murierromain.com]
+    ING_PROD_API[Ingress porty-prod-api]
+    ING_PROD_FRONT[Ingress porty-prod-front]
+    SVC_PROD_API[Service porty 80]
+    SVC_PROD_FRONT[Service porty-front 80]
+    DEP_PROD_API[Deployment porty dotnet 8080]
+    DEP_PROD_FRONT[Deployment porty-front nginx 80]
+    ING_PROD_API --> SVC_PROD_API --> DEP_PROD_API
+    ING_PROD_FRONT --> SVC_PROD_FRONT --> DEP_PROD_FRONT
+  end
+
+  LB --> H_STG --> ING_STG_API
+  H_STG --> ING_STG_FRONT
+
+  LB --> H_PROD --> ING_PROD_API
+  H_PROD --> ING_PROD_FRONT
+```
+
+- **Routage**
+  - `/api` → **Service porty:80** → pods API .NET écoutant sur 8080.
+  - `/*` → **Service porty-front:80** (build React servi par NGINX).
+- **Entrypoints Traefik** : `web` (80) et `websecure` (443).
+- **TLS** : `ClusterIssuer/letsencrypt-prod`, secrets `*-tls` par namespace.
+
+### Flux CI/CD
+
+```mermaid
+sequenceDiagram
+  actor Dev
+  participant GA as GitHub Actions
+  participant GHCR as GHCR Registry
+  participant K3s as K3s Cluster
+
+  Dev->>GA: push develop ou master
+  GA->>GA: analyse + tests (SonarCloud, build & test)
+  GA->>GHCR: build & push image API
+  GA->>GHCR: build & push image FRONT
+  GA->>K3s: kubectl apply (ns, issuer, deploy, services, ingress)
+  K3s-->>GA: rollout status + smoke tests
+```
+
+---
+
+## Arborescence
 
 ```
-/api                   # ASP.NET Core project
-/front                 # Vite app
-/docker-compose.yml.example      # production-like local stack (rename to .yml)
-/docker-compose.dev.yml.example  # development stack (rename to .yml)
+k8s/
+  cluster-issuer.yaml
+  namespace-staging.yaml
+  namespace-prod.yaml
+  deployment.yaml            # API
+  service.yaml               # API
+  deployment-front.yaml      # FRONT
+  service-front.yaml         # FRONT
+  ingress-staging-api.yaml
+  ingress-staging-front.yaml
+  ingress-staging-front-http.yaml   # optionnel http only
+  ingress-prod-api.yaml
+  ingress-prod-front.yaml
+  ingress-prod-front-http.yaml      # optionnel http only
+.github/workflows/CICD.yml          # pipeline CI/CD
+front/                               # app React TypeScript
+api/                                 # API .NET 8
 ```
 
-> **Important:** The Compose files are provided as `*.example`.  
-> To use them, **remove the `.example` suffix** so you end up with:
->
-> - `docker-compose.yml`
-> - `docker-compose.dev.yml`
+> Le workflow construit l’image **API** sans Dockerfile persistant (publish + commit sur `mcr.microsoft.com/dotnet/aspnet:8.0`) et génère à la volée un Dockerfile **NGINX** pour le front (avec fallback SPA).
 
 ---
 
-## Prerequisites
+## Prérequis
 
-- **Docker Desktop** (or compatible runtime)
-- **.NET 8 SDK** (only required if you run EF tools from your host)
-- **Node 20** (optional for local-only runs; the front is built in containers)
+- **K3s** (ou Kubernetes) opérationnel, avec **Traefik** en `LoadBalancer` dans `kube-system`.
+- **cert-manager** installé (CRDs + controller).
+- `kubeconfig` valide (fourni à la CI via `KUBE_CONFIG`).
+- Accès **GHCR** avec token PAT (`TOKEN_GITHUB`).
+- **DNS** : enregistrements `A` vers l’IP du service `traefik` (LB).
+
+Installer cert-manager rapidement (Helm) :
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+kubectl create namespace cert-manager || true
+helm upgrade --install cert-manager jetstack/cert-manager   --namespace cert-manager --set installCRDs=true
+```
 
 ---
 
-## HTTPS certificates (one-time setup on your host)
+## Installation locale
 
-Generate the .NET **dev certificate** and export it to a **PFX**.
+### Front
+```bash
+cd front
+npm ci
+npm run dev     # dev server
+npm run build   # génère dist/
+```
 
-### Windows (PowerShell)
+### API (.NET 8)
+```bash
+cd api
+dotnet restore
+dotnet build -c Release
+
+# Lancer en local sur 8080
+# CMD :
+set ASPNETCORE_URLS=http://0.0.0.0:8080 && dotnet run
+# PowerShell :
+# $env:ASPNETCORE_URLS="http://0.0.0.0:8080"; dotnet run
+```
+
+> La chaîne **ConnectionStrings__DefaultConnection** doit pointer sur ta base (SQL Server, etc.).  
+> Si tu utilises EF Core : `dotnet ef database update` selon tes migrations.
+
+---
+
+## CI/CD GitHub Actions
+
+- Branches gérées : `develop` → **staging**, `master` → **prod**.
+- Étapes principales :
+  1. Analyse & tests (SonarCloud, tests front, build & test API).
+  2. Build images et **push GHCR** :
+     - API → `ghcr.io/rmurier/porty:<sha>`
+     - Front → `ghcr.io/rmurier/porty-front:<sha>`
+  3. Déploiement K8s : namespaces, issuer, deployments, services, ingress.
+  4. Sanity checks + smoke tests HTTP/HTTPS avec en-tête `Host`.
+
+---
+
+## Déploiement Kubernetes
+
+### Namespaces
+- `namespace-staging.yaml` → crée `staging`
+- `namespace-prod.yaml` → crée `prod`
+
+### ClusterIssuer
+- `cluster-issuer.yaml` expose un `ClusterIssuer letsencrypt-prod` (HTTP-01).  
+
+### Deployments & Services
+- `deployment.yaml` : container API écoute **8080** ; `Service porty:80` cible le port **8080** des pods.
+- `deployment-front.yaml` : NGINX sert `/usr/share/nginx/html` ; `Service porty-front:80`.
+
+### Ingress
+- Staging : `ingress-staging-api.yaml`, `ingress-staging-front.yaml`.
+- Prod : `ingress-prod-api.yaml`, `ingress-prod-front.yaml`.
+- Les Ingress **front** créent un `Certificate` nommé `*-tls` via cert-manager.
+
+---
+
+## DNS et TLS
+
+1. Pointe les DNS :
+   - `test.murierromain.com` → IP du LB Traefik (`kubectl -n kube-system get svc traefik -o wide`)
+   - `murierromain.com` → même IP
+2. Applique `cluster-issuer.yaml`.
+3. Vérifie le certificat :
+   ```bash
+   kubectl -n staging get certificate,secret
+   kubectl -n prod    get certificate,secret
+   ```
+4. (si besoin) Forcer TLS côté Traefik :
+   ```bash
+   kubectl -n staging annotate ingress porty-staging-front      traefik.ingress.kubernetes.io/router.tls=true --overwrite
+   ```
+
+---
+
+## Secrets GitHub et Base64
+
+### Secrets requis
+
+| Secret GitHub            | Description |
+|--------------------------|-------------|
+| `KUBE_CONFIG`            | Contenu du kubeconfig (cluster K3s) |
+| `TOKEN_GITHUB`           | PAT GitHub avec droits `write:packages` (push GHCR) |
+| `SONAR_TOKEN`            | Token SonarCloud |
+| `DOCKER_COMPOSE_DEV_B64` | **Base64** du compose dev avec `ConnectionStrings__DefaultConnection` |
+| `DOCKER_COMPOSE_PROD_B64`| **Base64** du compose prod avec `ConnectionStrings__DefaultConnection` |
+
+
+### Générer du Base64
+
+**Windows PowerShell** :
 ```powershell
-mkdir "$env:USERPROFILE\.aspnet\https" -ErrorAction SilentlyContinue
-dotnet dev-certs https --clean
-dotnet dev-certs https -ep "$env:USERPROFILE\.aspnet\https\aspnetapp.pfx" -p devcert
-dotnet dev-certs https --trust
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("compose.dev.yml")) | Set-Clipboard
 ```
 
-### Linux / macOS (bash)
-```bash
-mkdir -p ~/.aspnet/https
-dotnet dev-certs https --clean
-dotnet dev-certs https -ep ~/.aspnet/https/aspnetapp.pfx -p devcert
-dotnet dev-certs https --trust
+**Windows CMD** :
+```cmd
+certutil -encode compose.dev.yml compose.dev.yml.b64
 ```
 
-The **API** uses the `aspnetapp.pfx` directly.  
-The **Front** (static server) needs **CRT/KEY**; convert once from the PFX:
-
+**macOS** :
 ```bash
-# (Linux/macOS or Git Bash on Windows)
-openssl pkcs12 -in ~/.aspnet/https/aspnetapp.pfx -clcerts -nokeys -out ~/.aspnet/https/cert.crt -password pass:devcert
-openssl pkcs12 -in ~/.aspnet/https/aspnetapp.pfx -nocerts -out ~/.aspnet/https/cert.key -password pass:devcert -nodes
+base64 -i compose.dev.yml | pbcopy
 ```
 
-**Files expected by the Compose files:**
-- `~/.aspnet/https/aspnetapp.pfx` (API)
-- `~/.aspnet/https/cert.crt` and `~/.aspnet/https/cert.key` (Front)
-
----
-
-## Development (Docker Compose)
-
-1) **Rename** `docker-compose.dev.yml.example` → `docker-compose.dev.yml`  
-2) Start the stack:
+**Linux** :
 ```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-- **API (HTTPS)**: https://localhost:9090/swagger
-- **Front (Vite dev)**: https://localhost:5174
-- **SQL**: host `localhost`, port **1434**
-
-Stop:
-```bash
-docker compose -f docker-compose.dev.yml down
-```
-
-> Tip: The dev stack is prepared to run alongside prod (separate ports & volumes).
-
----
-
-## Production-like local stack (Docker Compose)
-
-1) **Rename** `docker-compose.yml.example` → `docker-compose.yml`  
-2) Start the stack:
-```bash
-docker compose up --build
-```
-- **Front (HTTPS)**: https://localhost  
-- **API (HTTPS)**: https://localhost:8080  (no swagger)
-- **SQL**: host `localhost`, port **1435**
-
-Stop:
-```bash
-docker compose down
+base64 -w0 compose.dev.yml > compose.dev.yml.b64
 ```
 
 ---
 
-## Configuration
+## Debug
 
-### Connection string (in containers)
-The Compose files set:
-```
-ConnectionStrings__DefaultConnection=Server=db;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True
-```
-In code:
-```csharp
-var cs = builder.Configuration.GetConnectionString("DefaultConnection");
-```
-
-**From host tools (EF CLI)** use:
-- Dev DB: `Server=localhost,1434;...`
-- Prod compose DB: `Server=localhost,1435;...`
-
----
-
-## EF Core migrations
-
-### Option A — run from your host
-> `dotnet ef` doesn’t read Compose env vars; pass the connection string via env.
-
-**Windows PowerShell**
-```powershell
-$env:ConnectionStrings__DefaultConnection = "Server=localhost,1435;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True"
-dotnet ef database update --project api --startup-project api
-```
-
-**bash**
+### 404 via Traefik
 ```bash
-ConnectionStrings__DefaultConnection="Server=localhost,1435;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True" \
-dotnet ef database update --project api --startup-project api
+# Entrypoints bien annotés
+kubectl -n staging annotate ingress porty-staging-front traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
+kubectl -n staging annotate ingress porty-staging-api   traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
+
+# Test HTTP avec Host
+LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl -sI -H "Host: test.murierromain.com" "http://$LB/index.html" | head -n1
 ```
 
-### Option B — run inside the API container
+### Certificat absent
 ```bash
-docker exec -it porty-api-prod dotnet ef database update --project /app --startup-project /app
+kubectl get clusterissuer
+kubectl -n staging get certificate,secret
+kubectl -n staging describe certificate porty-staging-tls
+```
+
+### Namespace erroné
+```bash
+kubectl -n staging get ingress
+kubectl -n prod get ingress
+```
+
+### Problème de pull image GHCR
+```bash
+kubectl -n staging get secret ghcr-secret -o yaml | head
 ```
 
 ---
 
-## CORS (front ↔ API)
+## Commandes utiles
 
-If the dev front (5174) is blocked by CORS, add in `Program.cs` your URL:
-
-```csharp
-var cors = "_cors";
-builder.Services.AddCors(o => o.AddPolicy(cors, p =>
-{
-    p.WithOrigins("https://localhost:5174", "https://localhost")
-     .AllowAnyHeader()
-     .AllowAnyMethod();
-}));
-app.UseCors(cors);
+Lister rapidement Ingress + hosts + TLS :
+```bash
+kubectl -n staging get ingress   -o custom-columns=NAME:.metadata.name,HOSTS:.spec.rules[*].host,TLS:.spec.tls[*].secretName
 ```
 
----
-
-## Troubleshooting
-
-- **Cannot configure HTTPS / dev cert missing**  
-  Ensure `~/.aspnet/https/aspnetapp.pfx` exists on the host and is mounted with `~/.aspnet/https:/https:ro`.
-
-- **`/https/aspnetapp.pfx` not found in container**  
-  The host path is empty or incorrect. Re-generate the certs and confirm the mount.
-
-- **SQL connection fails from API**  
-  Inside Docker, use `Server=db;...` (service name), not `localhost`.
-
-- **`ConnectionStrings:DefaultConnection` missing when running `dotnet ef`**  
-  Export the env var before the command.
-
-- **Ports not reachable**  
-  Ensure `ASPNETCORE_URLS` (internal listen port) matches the Compose `ports:` mapping.
+Voir endpoints :
+```bash
+kubectl -n staging get svc porty porty-front -o wide
+kubectl -n staging get endpoints porty porty-front
+```

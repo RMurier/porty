@@ -13,9 +13,13 @@ namespace api.Services
             _ctx = ctx;
         }
 
-        public async Task<List<Buisness>?> GetAllBuisnesses()
+        public async Task<List<Buisness>> GetAllBuisnesses()
         {
-            return await _ctx.Buisnesses.ToListAsync();
+            if (_ctx.Buisnesses.Any())
+            {
+                return await _ctx.Buisnesses.ToListAsync();
+            }
+            return new List<Buisness>();
         }
     }
 }

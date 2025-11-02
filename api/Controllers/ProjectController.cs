@@ -35,7 +35,7 @@ namespace api.Controllers
                 return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
                 
             }
-            catch (Exception ex)
+            catch
             {
                 return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
             }

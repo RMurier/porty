@@ -13,9 +13,13 @@ namespace api.Services
             _ctx = ctx;
         }
 
-        public async Task<List<Career>?> GetAllCareers()
+        public async Task<List<Career>> GetAllCareers()
         {
-            return await _ctx.Careers.ToListAsync();
+            if (_ctx.Careers.Any())
+            {
+                return await _ctx.Careers.ToListAsync();
+            }
+            return new List<Career>();
         }
     }
 }

@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api.Services
 {
-    public class USerService : IUser
+    public class UserService : IUser
     {
         internal readonly PortyDbContext _ctx;
-        public USerService(PortyDbContext ctx)
+        public UserService(PortyDbContext ctx)
         {
             _ctx = ctx;
         }

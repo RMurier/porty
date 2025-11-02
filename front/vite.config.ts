@@ -7,10 +7,6 @@ export default defineConfig({
   server: {
     host: true,
     port: 443,
-    https: {
-      cert: fs.readFileSync("/https/cert.crt"),
-      key: fs.readFileSync("/https/cert.key"),
-    },
     proxy: {
       "/api": {
         target: "http://api:8080",

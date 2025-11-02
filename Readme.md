@@ -21,7 +21,7 @@ Deux environnements :
 6. [Déploiement Kubernetes](#déploiement-kubernetes)
 7. [DNS et TLS](#dns-et-tls)
 8. [Secrets GitHub et Base64](#secrets-github-et-base64)
-9. [Dépannage](#dépannage)
+9. [Debut](#debug)
 10. [Commandes utiles](#commandes-utiles)
 
 ---
@@ -30,7 +30,7 @@ Deux environnements :
 
 ### Vue d’ensemble (Kubernetes)
 
-> Diagramme **compat GitHub** : pas de caractères spéciaux dans les labels, pas de texte sur les flèches.
+> Diagramme **compat GitHub**
 
 ```mermaid
 flowchart LR
@@ -176,11 +176,6 @@ set ASPNETCORE_URLS=http://0.0.0.0:8080 && dotnet run
   3. Déploiement K8s : namespaces, issuer, deployments, services, ingress.
   4. Sanity checks + smoke tests HTTP/HTTPS avec en-tête `Host`.
 
-> La CI **force** les annotations Ingress :
-> `kubernetes.io/ingress.class=traefik`,  
-> `traefik.ingress.kubernetes.io/router.entrypoints=web,websecure`,  
-> `cert-manager.io/cluster-issuer=letsencrypt-prod`.
-
 ---
 
 ## Déploiement Kubernetes
@@ -191,15 +186,14 @@ set ASPNETCORE_URLS=http://0.0.0.0:8080 && dotnet run
 
 ### ClusterIssuer
 - `cluster-issuer.yaml` expose un `ClusterIssuer letsencrypt-prod` (HTTP-01).  
-  _Ne pas_ ajouter de `privateKeySecretRef` personnalisé : cert-manager gère la clé automatiquement.
 
 ### Deployments & Services
 - `deployment.yaml` : container API écoute **8080** ; `Service porty:80` cible le port **8080** des pods.
 - `deployment-front.yaml` : NGINX sert `/usr/share/nginx/html` ; `Service porty-front:80`.
 
 ### Ingress
-- Staging : `ingress-staging-api.yaml`, `ingress-staging-front.yaml` (+ `ingress-staging-front-http.yaml` si besoin de HTTP pur).
-- Prod : `ingress-prod-api.yaml`, `ingress-prod-front.yaml` (+ `ingress-prod-front-http.yaml` si besoin de HTTP pur).
+- Staging : `ingress-staging-api.yaml`, `ingress-staging-front.yaml`.
+- Prod : `ingress-prod-api.yaml`, `ingress-prod-front.yaml`.
 - Les Ingress **front** créent un `Certificate` nommé `*-tls` via cert-manager.
 
 ---
@@ -234,22 +228,15 @@ set ASPNETCORE_URLS=http://0.0.0.0:8080 && dotnet run
 | `DOCKER_COMPOSE_DEV_B64` | **Base64** du compose dev avec `ConnectionStrings__DefaultConnection` |
 | `DOCKER_COMPOSE_PROD_B64`| **Base64** du compose prod avec `ConnectionStrings__DefaultConnection` |
 
-Extrait attendu dans les `compose` (lu par `yq` dans la CI) :
-```yaml
-services:
-  api:
-    environment:
-      ConnectionStrings__DefaultConnection: "Server=...;Database=...;User Id=...;Password=...;TrustServerCertificate=True;"
-```
 
 ### Générer du Base64
 
-**Windows PowerShell** (copie dans le presse-papier) :
+**Windows PowerShell** :
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("compose.dev.yml")) | Set-Clipboard
 ```
 
-**Windows CMD** (vers fichier) :
+**Windows CMD** :
 ```cmd
 certutil -encode compose.dev.yml compose.dev.yml.b64
 ```
@@ -266,7 +253,7 @@ base64 -w0 compose.dev.yml > compose.dev.yml.b64
 
 ---
 
-## Dépannage
+## Debug
 
 ### 404 via Traefik
 ```bash
@@ -310,10 +297,4 @@ Voir endpoints :
 ```bash
 kubectl -n staging get svc porty porty-front -o wide
 kubectl -n staging get endpoints porty porty-front
-```
-
-Debug local NGINX :
-```bash
-kubectl -n staging port-forward svc/porty-front 18080:80
-curl -I http://127.0.0.1:18080/
 ```

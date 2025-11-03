@@ -206,27 +206,32 @@ jobs:
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
       - name: Create MSSQL secret in target ns
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+          SA: ${{ secrets.MSSQL_SA_PASSWORD }}
         run: |
           kubectl -n "$NS" create secret generic mssql-secret \
-            --from-literal=MSSQL_SA_PASSWORD='${{ secrets.MSSQL_SA_PASSWORD }}' \
+            --from-literal=MSSQL_SA_PASSWORD="$SA" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
       - name: Deploy MSSQL (Service + StatefulSet)
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" apply -f k8s/mssql.yaml
           kubectl -n "$NS" rollout status statefulset/mssql --timeout=300s
 
       - name: Init DB + login Porty
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" delete job mssql-init --ignore-not-found
           kubectl -n "$NS" apply -f k8s/mssql-init.yaml
           kubectl -n "$NS" wait --for=condition=Complete job/mssql-init --timeout=180s || true
 
       - name: Set API connection string (in-cluster DNS)
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           echo "CONNECTION_STRING=Server=mssql.${NS}.svc.cluster.local,1433;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True" >> "$GITHUB_ENV"
 
@@ -236,6 +241,7 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
+          : "${CONNECTION_STRING:?Missing CONNECTION_STRING}"
           export APP_NAME=${{ env.APP_NAME }}
           export FRONT_APP_NAME=${{ env.FRONT_APP_NAME }}
           export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
@@ -243,7 +249,6 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
-          export CONNECTION_STRING=${{ env.CONNECTION_STRING }}
           kubectl config set-context --current --namespace="$NS"
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
@@ -301,11 +306,13 @@ jobs:
           kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
           kubectl -n "$NS" port-forward svc/${{ env.FRONT_APP_NAME }} 18080:80 >/dev/null 2>&1 &
           PF_PID=$!
-          for i in {1..20}; do nc -z 127.0.0.1 18080 && break || sleep 0.3; done
-          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html)
+          for i in {1..40}; do
+            curl -sSf http://127.0.0.1:18080/index.html >/dev/null && break || sleep 0.5
+          done
+          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html || true)
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
+          [[ "$CODE" =~ ^(200|301|302|307|308)$ ]] || { echo "Front not OK ($CODE)"; kill $PF_PID || true; exit 1; }
           kill $PF_PID || true
 
       - name: Smoke test Ingress (HTTP)

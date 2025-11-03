@@ -2,7 +2,7 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['develop', "master"]
+    branches: ['develop', 'master']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -127,7 +127,6 @@ jobs:
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-          # nginx SPA fallback
           cat > docker-tmp/nginx/default.conf <<'CONF'
           server {
             listen 80;
@@ -143,7 +142,7 @@ jobs:
           COPY default.conf /etc/nginx/conf.d/default.conf
           EXPOSE 80
           EOF
-          test -f docker-tmp/nginx/index.html || { echo "❌ front/dist/index.html manquant"; ls -la docker-tmp/nginx | head -n 50; exit 1; }
+          test -f docker-tmp/nginx/index.html || { echo "front/dist/index.html manquant"; exit 1; }
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -196,30 +195,6 @@ jobs:
             echo "ingress_http_name=porty-staging-front-http" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Assert images present
-        run: |
-          test -n "${{ needs.docker-api.outputs.image }}"   || (echo "API image missing" && exit 1)
-          test -n "${{ needs.docker-front.outputs.image }}" || (echo "Front image missing" && exit 1)
-
-      - name: Apply ClusterIssuer (letsencrypt-prod)
-        run: kubectl apply -f k8s/cluster-issuer.yaml
-
-      - name: Load DB connection string (masked)
-        id: conn
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
-            echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > compose.yml
-          else
-            echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
-          fi
-          CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
-          [ -n "$CONN" ] && [ "$CONN" != "null" ] || { echo "Missing ConnectionStrings__DefaultConnection"; exit 1; }
-          echo "::add-mask::$CONN"
-          printf 'CONNECTION_STRING=%s\n' "$CONN" >> "$GITHUB_ENV"
-          rm -f compose.yml
-
       - name: Ensure GHCR pull secret in target ns
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
@@ -229,6 +204,31 @@ jobs:
             --docker-username="${{ github.actor }}" \
             --docker-password="${{ secrets.TOKEN_GITHUB }}" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+
+      - name: Create MSSQL secret in target ns
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        run: |
+          kubectl -n "$NS" create secret generic mssql-secret \
+            --from-literal=MSSQL_SA_PASSWORD='${{ secrets.MSSQL_SA_PASSWORD }}' \
+            --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+
+      - name: Deploy MSSQL (Service + StatefulSet)
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        run: |
+          kubectl -n "$NS" apply -f k8s/mssql.yaml
+          kubectl -n "$NS" rollout status statefulset/mssql --timeout=300s
+
+      - name: Init DB + login Porty
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        run: |
+          kubectl -n "$NS" delete job mssql-init --ignore-not-found
+          kubectl -n "$NS" apply -f k8s/mssql-init.yaml
+          kubectl -n "$NS" wait --for=condition=Complete job/mssql-init --timeout=180s || true
+
+      - name: Set API connection string (in-cluster DNS)
+        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        run: |
+          echo "CONNECTION_STRING=Server=mssql.${NS}.svc.cluster.local,1433;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True" >> "$GITHUB_ENV"
 
       - name: Apply app manifests (Deployments & Services)
         shell: bash
@@ -243,6 +243,7 @@ jobs:
           export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
           export HEALTH_PATH=${{ env.HEALTH_PATH }}
           export HOSTNAME=${{ steps.envsel.outputs.host }}
+          export CONNECTION_STRING=${{ env.CONNECTION_STRING }}
           kubectl config set-context --current --namespace="$NS"
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
@@ -289,7 +290,7 @@ jobs:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           kubectl -n "$NS" get deploy,svc,ingress -o wide
-          kubectl -n "$NS" get endpoints porty porty-front || true
+          kubectl -n "$NS" get endpoints porty porty-front mssql || true
 
       - name: Local check via port-forward (front Service)
         shell: bash
@@ -304,7 +305,7 @@ jobs:
           OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html)
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "❌ Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
+          case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
           kill $PF_PID || true
 
       - name: Smoke test Ingress (HTTP)
@@ -320,8 +321,6 @@ jobs:
           OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/index.html")
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
-          echo "HTTP $CODE (Server: ${SERVER:-unknown}) for $HOST via $LB"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
 
       - name: Wait for TLS certificate (if present)
@@ -331,11 +330,7 @@ jobs:
           NS="${{ steps.envsel.outputs.namespace }}"
           CERT_NAME="porty-${NS}-tls"
           if kubectl -n "$NS" get certificate "$CERT_NAME" >/dev/null 2>&1; then
-            kubectl -n "$NS" wait --for=condition=Ready "certificate/$CERT_NAME" --timeout=300s || {
-              echo "⚠️ Cert $CERT_NAME not ready yet, continuing."
-            }
-          else
-            echo "ℹ️ No Certificate $CERT_NAME resource found, skipping wait."
+            kubectl -n "$NS" wait --for=condition=Ready "certificate/$CERT_NAME" --timeout=300s || true
           fi
 
       - name: Smoke test Ingress (HTTPS)
@@ -346,6 +341,4 @@ jobs:
           OUT=$(curl -sk -D - -o /dev/null "https://$HOST/index.html")
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
-          echo "HTTPS $CODE (Server: ${SERVER:-unknown}) for $HOST"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac

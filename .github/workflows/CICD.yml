@@ -202,6 +202,9 @@ jobs:
             echo "ingress_names=porty-staging-front porty-staging-api" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Apply ClusterIssuer
+        run: kubectl apply -f k8s/cluster-issuer.yaml
+
       - name: GHCR pull secret
         shell: bash
         env:
@@ -224,6 +227,26 @@ jobs:
           kubectl -n "$NS" create secret generic mssql-secret \
             --from-literal=MSSQL_SA_PASSWORD="$SA" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+
+      - name: App DB password secret (from compose b64)
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
+            echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > compose.yml
+          else
+            echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
+          fi
+          CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
+          [ -n "$CONN" ] && [ "$CONN" != "null" ] || { echo "Missing ConnectionStrings__DefaultConnection"; exit 1; }
+          PASS=$(printf '%s' "$CONN" | sed -n 's/.*[Pp]assword=\([^;]*\).*/\1/p')
+          [ -n "$PASS" ] || { echo "Could not extract DB password"; exit 1; }
+          kubectl -n "$NS" create secret generic mssql-app \
+            --from-literal=PORTY_PASSWORD="$PASS" \
+            --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+          rm -f compose.yml
 
       - name: Deploy MSSQL (apply; safe recreate on immutable change)
         shell: bash

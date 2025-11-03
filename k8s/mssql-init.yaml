@@ -13,18 +13,41 @@ spec:
           env:
             - name: SA_PWD
               valueFrom:
-                secretKeyRef: { name: mssql-secret, key: MSSQL_SA_PASSWORD }
+                secretKeyRef:
+                  name: mssql-secret
+                  key: MSSQL_SA_PASSWORD
+            - name: PORTY_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: mssql-app         # <- Secret créé par la CI
+                  key: PORTY_PASSWORD
           command: ["/bin/bash","-lc"]
           args:
             - |
               set -e
-              until /opt/mssql-tools/bin/sqlcmd -S mssql -U sa -P "$SA_PWD" -Q "SELECT 1" >/dev/null 2>&1; do sleep 2; done
-              /opt/mssql-tools/bin/sqlcmd -S mssql -U sa -P "$SA_PWD" -Q "
-              IF DB_ID('Porty') IS NULL CREATE DATABASE [Porty];
-              IF NOT EXISTS (SELECT * FROM sys.sql_logins WHERE name='Porty')
-                CREATE LOGIN [Porty] WITH PASSWORD='IUSR_PORTY', CHECK_POLICY=OFF, CHECK_EXPIRATION=OFF;
+              until /opt/mssql-tools/bin/sqlcmd -S mssql,1433 -U sa -P "$SA_PWD" -Q "SELECT 1" >/dev/null 2>&1; do sleep 2; done
+
+              /opt/mssql-tools/bin/sqlcmd -S mssql,1433 -U sa -P "$SA_PWD" -b -v APPPWD="$PORTY_PWD" -Q "
+              IF DB_ID(N'Porty') IS NULL
+              BEGIN
+                CREATE DATABASE [Porty];
+              END;
+
+              IF NOT EXISTS (SELECT * FROM sys.sql_logins WHERE name = N'Porty')
+              BEGIN
+                DECLARE @p nvarchar(256) = N'$(APPPWD)';
+                DECLARE @sql nvarchar(4000) =
+                  N'CREATE LOGIN [Porty] WITH PASSWORD = ''' +
+                  REPLACE(@p, '''', '''''') + N''', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;';
+                EXEC (@sql);
+              END;
+
               USE [Porty];
-              IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name='Porty')
+
+              IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = N'Porty')
+              BEGIN
                 CREATE USER [Porty] FOR LOGIN [Porty];
+              END;
+
               EXEC sp_addrolemember N'db_owner', N'Porty';
               "

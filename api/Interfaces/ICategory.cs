@@ -4,6 +4,6 @@ namespace api.Interfaces
 {
     public interface ICategory
     {
-        public Task<List<Category>?> GetAllCategories();
+        public Task<List<Category>> GetAllCategories();
     }
 }

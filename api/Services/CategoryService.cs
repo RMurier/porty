@@ -13,9 +13,13 @@ namespace api.Services
             _ctx = ctx;
         }
 
-        public async Task<List<Category>?> GetAllCategories()
+        public async Task<List<Category>> GetAllCategories()
         {
-            return await _ctx.Categories.ToListAsync();
+            if (_ctx.Categories.Any())
+            {
+                return await _ctx.Categories.ToListAsync();
+            }
+            return new List<Category>();
         }
     }
 }

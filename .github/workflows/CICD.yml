@@ -2,7 +2,7 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['develop','master']
+    branches: ['develop', 'master']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -29,13 +29,18 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
       - uses: actions/setup-java@v4
-        with: { java-version: 17, distribution: zulu }
+        with:
+          java-version: 17
+          distribution: zulu
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
       - name: Frontend install
@@ -80,7 +85,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - id: publish
@@ -111,7 +117,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build frontend
@@ -119,7 +126,7 @@ jobs:
         run: |
           npm ci
           npm run build
-      - name: Build NGINX image
+      - name: Build NGINX image (serve React build at /)
         id: push
         shell: bash
         run: |
@@ -196,8 +203,11 @@ jobs:
           fi
 
       - name: GHCR pull secret
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username="${{ github.actor }}" \
@@ -205,51 +215,55 @@ jobs:
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
       - name: MSSQL SA secret
+        shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
           SA: ${{ secrets.MSSQL_SA_PASSWORD }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" create secret generic mssql-secret \
             --from-literal=MSSQL_SA_PASSWORD="$SA" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
-      - name: Deploy MSSQL (apply, fallback recreate on immutable change)
+      - name: Deploy MSSQL (apply; safe recreate on immutable change)
+        shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
-        shell: bash
         run: |
           set -euo pipefail
           export EXTERNAL_SQL_PORT="${{ steps.envsel.outputs.sqlport }}"
           envsubst < k8s/mssql.yaml > /tmp/mssql.yaml
-
-          # 1) Applique Service + StatefulSet
           if kubectl -n "$NS" apply -f /tmp/mssql.yaml; then
             echo "mssql applied"
           else
-            echo "mssql apply failed, attempting StatefulSet safe recreate"
-            # 2) Recrée SEULEMENT le StatefulSet, PVC conservés
+            echo "apply failed, trying StatefulSet recreate"
             kubectl -n "$NS" delete statefulset mssql --cascade=orphan || true
             kubectl -n "$NS" apply -f /tmp/mssql.yaml
           fi
-
-          # 3) Attente readiness
           kubectl -n "$NS" rollout status statefulset/mssql --timeout=300s
 
       - name: Init DB + login Porty
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" delete job mssql-init --ignore-not-found
           kubectl -n "$NS" apply -f k8s/mssql-init.yaml
           kubectl -n "$NS" wait --for=condition=Complete job/mssql-init --timeout=180s || true
 
       - name: API connection string
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           echo "CONNECTION_STRING=Server=mssql.${NS}.svc.cluster.local,1433;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True" >> "$GITHUB_ENV"
 
       - name: Apply app manifests
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           : "${CONNECTION_STRING:?Missing CONNECTION_STRING}"
@@ -267,15 +281,16 @@ jobs:
           envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
       - name: Apply Ingress
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           for F in "${{ steps.envsel.outputs.ingress_front }}" "${{ steps.envsel.outputs.ingress_api }}"; do
-            yq '.metadata.namespace = env(NS)' "$F" | kubectl apply -n "$NS" -f -
+            yq '.metadata.namespace = env(NS)' "$F" | kubectl -n "$NS" apply -f -
           done
           if [ -f "${{ steps.envsel.outputs.ingress_front_http }}" ]; then
-            yq '.metadata.namespace = env(NS)' "${{ steps.envsel.outputs.ingress_front_http }}" | kubectl apply -n "$NS" -f -
+            yq '.metadata.namespace = env(NS)' "${{ steps.envsel.outputs.ingress_front_http }}" | kubectl -n "$NS" apply -f -
           fi
           for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
             kubectl -n "$NS" annotate ingress "$NAME" kubernetes.io/ingress.class=traefik --overwrite
@@ -284,14 +299,18 @@ jobs:
           done
 
       - name: Sanity
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" get deploy,svc,ingress -o wide
           kubectl -n "$NS" get endpoints porty porty-front mssql || true
 
       - name: Front port-forward check
-        env: { NS: ${{ steps.envsel.outputs.namespace }} }
         shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
@@ -308,3 +327,5 @@ jobs:
           HOST="${{ steps.envsel.outputs.host }}"
           OUT=$(curl -sk -D - -o /dev/null "https://$HOST/index.html")
           echo "$OUT"
+          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
+          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac

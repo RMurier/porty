@@ -187,7 +187,7 @@ jobs:
           if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
             echo "namespace=prod" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
-            echo "nodeport=31435" >> "$GITHUB_OUTPUT"
+            echo "nodeport=1435" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-prod-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-prod-api.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_front_http=k8s/ingress-prod-front-http.yaml" >> "$GITHUB_OUTPUT"
@@ -196,7 +196,7 @@ jobs:
           else
             echo "namespace=staging" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
-            echo "nodeport=31434" >> "$GITHUB_OUTPUT"
+            echo "nodeport=1434" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-staging-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-staging-api.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_front_http=k8s/ingress-staging-front-http.yaml" >> "$GITHUB_OUTPUT"

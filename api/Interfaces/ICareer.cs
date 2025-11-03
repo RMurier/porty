@@ -4,6 +4,6 @@ namespace api.Interfaces
 {
     public interface ICareer
     {
-        public Task<List<Career>?> GetAllCareers();
+        public Task<List<Career>> GetAllCareers();
     }
 }

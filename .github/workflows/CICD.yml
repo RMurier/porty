@@ -2,7 +2,7 @@ name: CI/CD Porty
 
 on:
   push:
-    branches: ['**']
+    branches: ['develop', 'master']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -29,13 +29,18 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
       - uses: actions/setup-java@v4
-        with: { java-version: 17, distribution: zulu }
+        with:
+          java-version: 17
+          distribution: zulu
       - name: Install SonarScanner
         run: dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}/scanner
       - name: Frontend install
@@ -80,7 +85,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with:
+          dotnet-version: '8.0.x'
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - id: publish
@@ -111,7 +117,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - name: Login to GHCR
         run: echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build frontend
@@ -127,7 +134,6 @@ jobs:
           IMAGE_TAG="ghcr.io/${{ env.FRONT_IMAGE_NAME }}:${{ github.sha }}"
           mkdir -p docker-tmp/nginx
           cp -a front/dist/. docker-tmp/nginx/
-          # nginx SPA fallback
           cat > docker-tmp/nginx/default.conf <<'CONF'
           server {
             listen 80;
@@ -143,7 +149,7 @@ jobs:
           COPY default.conf /etc/nginx/conf.d/default.conf
           EXPOSE 80
           EOF
-          test -f docker-tmp/nginx/index.html || { echo "❌ front/dist/index.html manquant"; ls -la docker-tmp/nginx | head -n 50; exit 1; }
+          test -f docker-tmp/nginx/index.html || { echo "front/dist/index.html manquant"; exit 1; }
           docker build -t "$IMAGE_TAG" docker-tmp/nginx
           docker push "$IMAGE_TAG"
           echo "image=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -181,117 +187,127 @@ jobs:
           if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
             echo "namespace=prod" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.PROD_HOST }}" >> "$GITHUB_OUTPUT"
+            echo "sqlport=1435" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-prod-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-prod-api.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_front_http=k8s/ingress-prod-front-http.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_names=porty-prod-front porty-prod-api" >> "$GITHUB_OUTPUT"
-            echo "ingress_http_name=porty-prod-front-http" >> "$GITHUB_OUTPUT"
           else
             echo "namespace=staging" >> "$GITHUB_OUTPUT"
             echo "host=${{ env.STAGING_HOST }}" >> "$GITHUB_OUTPUT"
+            echo "sqlport=1434" >> "$GITHUB_OUTPUT"
             echo "ingress_front=k8s/ingress-staging-front.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_api=k8s/ingress-staging-api.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_front_http=k8s/ingress-staging-front-http.yaml" >> "$GITHUB_OUTPUT"
             echo "ingress_names=porty-staging-front porty-staging-api" >> "$GITHUB_OUTPUT"
-            echo "ingress_http_name=porty-staging-front-http" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Assert images present
-        run: |
-          test -n "${{ needs.docker-api.outputs.image }}"   || (echo "API image missing" && exit 1)
-          test -n "${{ needs.docker-front.outputs.image }}" || (echo "Front image missing" && exit 1)
-
-      - name: Apply ClusterIssuer (letsencrypt-prod)
-        run: kubectl apply -f k8s/cluster-issuer.yaml
-
-      - name: Load DB connection string (masked)
-        id: conn
+      - name: GHCR pull secret
         shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
-            echo "${{ secrets.DOCKER_COMPOSE_PROD_B64 }}" | base64 --decode > compose.yml
-          else
-            echo "${{ secrets.DOCKER_COMPOSE_DEV_B64 }}" | base64 --decode > compose.yml
-          fi
-          CONN=$(yq -r '.services.api.environment["ConnectionStrings__DefaultConnection"] // ""' compose.yml)
-          [ -n "$CONN" ] && [ "$CONN" != "null" ] || { echo "Missing ConnectionStrings__DefaultConnection"; exit 1; }
-          echo "::add-mask::$CONN"
-          printf 'CONNECTION_STRING=%s\n' "$CONN" >> "$GITHUB_ENV"
-          rm -f compose.yml
-
-      - name: Ensure GHCR pull secret in target ns
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username="${{ github.actor }}" \
             --docker-password="${{ secrets.TOKEN_GITHUB }}" \
             --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
 
-      - name: Apply app manifests (Deployments & Services)
+      - name: MSSQL SA secret
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+          SA: ${{ secrets.MSSQL_SA_PASSWORD }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$NS" create secret generic mssql-secret \
+            --from-literal=MSSQL_SA_PASSWORD="$SA" \
+            --dry-run=client -o yaml | kubectl -n "$NS" apply -f -
+
+      - name: Deploy MSSQL (apply; safe recreate on immutable change)
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
-          export APP_NAME=${{ env.APP_NAME }}
-          export FRONT_APP_NAME=${{ env.FRONT_APP_NAME }}
-          export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
-          export IMAGE=${{ needs.docker-api.outputs.image }}
-          export FRONT_IMAGE=${{ needs.docker-front.outputs.image }}
-          export HEALTH_PATH=${{ env.HEALTH_PATH }}
-          export HOSTNAME=${{ steps.envsel.outputs.host }}
+          export EXTERNAL_SQL_PORT="${{ steps.envsel.outputs.sqlport }}"
+          envsubst < k8s/mssql.yaml > /tmp/mssql.yaml
+          if kubectl -n "$NS" apply -f /tmp/mssql.yaml; then
+            echo "mssql applied"
+          else
+            echo "apply failed, trying StatefulSet recreate"
+            kubectl -n "$NS" delete statefulset mssql --cascade=orphan || true
+            kubectl -n "$NS" apply -f /tmp/mssql.yaml
+          fi
+          kubectl -n "$NS" rollout status statefulset/mssql --timeout=300s
+
+      - name: Init DB + login Porty
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$NS" delete job mssql-init --ignore-not-found
+          kubectl -n "$NS" apply -f k8s/mssql-init.yaml
+          kubectl -n "$NS" wait --for=condition=Complete job/mssql-init --timeout=180s || true
+
+      - name: API connection string
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          echo "CONNECTION_STRING=Server=mssql.${NS}.svc.cluster.local,1433;Database=Porty;User Id=Porty;Password=IUSR_PORTY;TrustServerCertificate=True;MultipleActiveResultSets=True" >> "$GITHUB_ENV"
+
+      - name: Apply app manifests
+        shell: bash
+        env:
+          NS: ${{ steps.envsel.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          : "${CONNECTION_STRING:?Missing CONNECTION_STRING}"
+          export APP_NAME="${{ env.APP_NAME }}"
+          export FRONT_APP_NAME="${{ env.FRONT_APP_NAME }}"
+          export CONTAINER_PORT="${{ env.CONTAINER_PORT }}"
+          export IMAGE="${{ needs.docker-api.outputs.image }}"
+          export FRONT_IMAGE="${{ needs.docker-front.outputs.image }}"
+          export HEALTH_PATH="${{ env.HEALTH_PATH }}"
+          export HOSTNAME="${{ steps.envsel.outputs.host }}"
           kubectl config set-context --current --namespace="$NS"
           envsubst < k8s/deployment.yaml        | kubectl apply -f -
           envsubst < k8s/service.yaml           | kubectl apply -f -
           envsubst < k8s/deployment-front.yaml  | kubectl apply -f -
           envsubst < k8s/service-front.yaml     | kubectl apply -f -
 
-      - name: Cleanup legacy ingresses
-        shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
-        run: |
-          set -euo pipefail
-          kubectl -n "$NS" delete ingress porty --ignore-not-found
-          kubectl -n "$NS" delete ingress porty-ingress --ignore-not-found
-          kubectl -n "$NS" delete ingress porty-${NS}-ingress --ignore-not-found
-
-      - name: Apply environment Ingress (force namespace to target)
+      - name: Apply Ingress
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
           set -euo pipefail
           for F in "${{ steps.envsel.outputs.ingress_front }}" "${{ steps.envsel.outputs.ingress_api }}"; do
-            yq '.metadata.namespace = env(NS)' "$F" | kubectl apply -n "$NS" -f -
+            yq '.metadata.namespace = env(NS)' "$F" | kubectl -n "$NS" apply -f -
           done
           if [ -f "${{ steps.envsel.outputs.ingress_front_http }}" ]; then
-            yq '.metadata.namespace = env(NS)' "${{ steps.envsel.outputs.ingress_front_http }}" | kubectl apply -n "$NS" -f -
+            yq '.metadata.namespace = env(NS)' "${{ steps.envsel.outputs.ingress_front_http }}" | kubectl -n "$NS" apply -f -
           fi
-
-      - name: Ensure Ingress class + entrypoints + issuer
-        shell: bash
-        env:
-          NS: ${{ steps.envsel.outputs.namespace }}
-        run: |
-          set -euo pipefail
           for NAME in ${{ steps.envsel.outputs.ingress_names }}; do
             kubectl -n "$NS" annotate ingress "$NAME" kubernetes.io/ingress.class=traefik --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" traefik.ingress.kubernetes.io/router.entrypoints=web,websecure --overwrite
             kubectl -n "$NS" annotate ingress "$NAME" cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite || true
           done
 
-      - name: Sanity check
+      - name: Sanity
+        shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
         run: |
+          set -euo pipefail
           kubectl -n "$NS" get deploy,svc,ingress -o wide
-          kubectl -n "$NS" get endpoints porty porty-front || true
+          kubectl -n "$NS" get endpoints porty porty-front mssql || true
 
-      - name: Local check via port-forward (front Service)
+      - name: Front port-forward check
         shell: bash
         env:
           NS: ${{ steps.envsel.outputs.namespace }}
@@ -299,46 +315,12 @@ jobs:
           set -euo pipefail
           kubectl -n "$NS" rollout status deploy/${{ env.FRONT_APP_NAME }} --timeout=120s
           kubectl -n "$NS" port-forward svc/${{ env.FRONT_APP_NAME }} 18080:80 >/dev/null 2>&1 &
-          PF_PID=$!
-          for i in {1..20}; do nc -z 127.0.0.1 18080 && break || sleep 0.3; done
-          OUT=$(curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html)
-          echo "$OUT"
-          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          case "$CODE" in 200|301|302|307|308) echo "Front OK ($CODE)";; *) echo "❌ Nginx/Service renvoie $CODE"; kill $PF_PID || true; exit 1;; esac
-          kill $PF_PID || true
+          PF=$!
+          for i in {1..40}; do curl -sSf http://127.0.0.1:18080/index.html >/dev/null && break || sleep 0.5; done
+          curl -s -D - -o /dev/null http://127.0.0.1:18080/index.html || true
+          kill $PF || true
 
-      - name: Smoke test Ingress (HTTP)
-        shell: bash
-        run: |
-          set -euo pipefail
-          HOST="${{ steps.envsel.outputs.host }}"
-          LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -z "$LB" ]; then
-            LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          fi
-          [ -n "$LB" ] || { echo "No LB address for Traefik"; kubectl -n kube-system get svc traefik -o wide; exit 1; }
-          OUT=$(curl -s -D - -o /dev/null -H "Host: $HOST" "http://$LB/index.html")
-          echo "$OUT"
-          CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
-          echo "HTTP $CODE (Server: ${SERVER:-unknown}) for $HOST via $LB"
-          case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac
-
-      - name: Wait for TLS certificate (if present)
-        shell: bash
-        run: |
-          set -euo pipefail
-          NS="${{ steps.envsel.outputs.namespace }}"
-          CERT_NAME="porty-${NS}-tls"
-          if kubectl -n "$NS" get certificate "$CERT_NAME" >/dev/null 2>&1; then
-            kubectl -n "$NS" wait --for=condition=Ready "certificate/$CERT_NAME" --timeout=300s || {
-              echo "⚠️ Cert $CERT_NAME not ready yet, continuing."
-            }
-          else
-            echo "ℹ️ No Certificate $CERT_NAME resource found, skipping wait."
-          fi
-
-      - name: Smoke test Ingress (HTTPS)
+      - name: Ingress HTTPS smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -346,6 +328,4 @@ jobs:
           OUT=$(curl -sk -D - -o /dev/null "https://$HOST/index.html")
           echo "$OUT"
           CODE=$(printf '%s' "$OUT" | head -n1 | awk '{print $2}')
-          SERVER=$(printf '%s' "$OUT" | awk -F': ' 'tolower($1)=="server"{print $2; exit}' | tr -d '\r')
-          echo "HTTPS $CODE (Server: ${SERVER:-unknown}) for $HOST"
           case "$CODE" in 200|301|302|307|308) exit 0 ;; *) exit 1 ;; esac

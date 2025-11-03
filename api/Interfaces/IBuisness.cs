@@ -4,6 +4,6 @@ namespace api.Interfaces
 {
     public interface IBuisness
     {
-        public Task<List<Buisness>?> GetAllBuisnesses();
+        public Task<List<Buisness>> GetAllBuisnesses();
     }
 }

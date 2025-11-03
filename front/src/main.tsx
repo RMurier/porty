@@ -14,7 +14,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AppBar />
-      <div className="pt-14">  {/* padding = hauteur de AppBar pour que le contenu ne soit pas caché */}
+      <div className="pt-14">  
         <Routes>
           <Route path="/" element={<Home />} />
           {/* <Route path="/projects" element={<Projects />} />
@@ -22,7 +22,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/contact" element={<Contact />} />
           <Route path="/sign-in" element={<SignIn />} />
           <Route path="/sign-up" element={<SignUp />} /> */}
-          {/* autres routes */}
         </Routes>
       </div>
     </BrowserRouter>

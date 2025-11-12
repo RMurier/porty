@@ -1,0 +1,8 @@
+{
+  "EmailAlreadyUsed": "Email déjà utilisé.",
+  "EmailAndPasswordNecessary":  "L'email et le mot de passe sont nécessaires.",
+  "InvalidCredentials": "L'email et/ou le mot de passe est incorrect.",
+  "EmailNotVerified": "Email non vérifié.",
+  "ServerError": "Une erreur est survenue, merci de r�essayer ult�rieurement.",
+  "InvalidRefreshToken": "Refresh token invalide"
+}

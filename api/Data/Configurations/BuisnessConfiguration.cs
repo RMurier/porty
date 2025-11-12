@@ -1,7 +1,6 @@
 using api.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace api.Data.Configurations
 {
@@ -16,11 +15,13 @@ namespace api.Data.Configurations
             b.Property(x => x.Id)
                 .HasColumnName("ID")
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnOrder(1);
 
             b.Property(x => x.Name)
                 .HasMaxLength(128)
                 .HasColumnName("NAME")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             b.HasMany(x => x.Careers)

@@ -11,9 +11,11 @@ namespace api.Controllers
     public class BuisnessController : ControllerBase
     {
         internal IBuisness _buisness;
-        public BuisnessController(IBuisness buisness)
+        internal IJsonLocalizer L;
+        public BuisnessController(IBuisness buisness, IJsonLocalizer l)
         {
             _buisness = buisness;
+            L = l;
         }
 
         [HttpGet]
@@ -31,12 +33,12 @@ namespace api.Controllers
                 {
                     return Ok(buisness);
                 }
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
                 
             }
             catch 
             {
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
             }
         }
     }

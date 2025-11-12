@@ -1,7 +1,6 @@
 ﻿using api.Data.Models;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace api.Data.Configurations
 {
@@ -14,64 +13,69 @@ namespace api.Data.Configurations
             b.HasKey(x => x.Id);
 
             b.Property(x => x.Id)
-                .HasColumnName("id")
-                .HasColumnOrder(1)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             b.Property(x => x.FirstName)
                 .HasMaxLength(100)
-                .HasColumnName("firstName")
+                .HasColumnName("FIRSTNAME")
                 .HasColumnOrder(2)
                 .IsRequired();
 
             b.Property(x => x.LastName)
                 .HasMaxLength(100)
-                .HasColumnName("lastName")
+                .HasColumnName("LASTNAME")
                 .HasColumnOrder(3)
                 .IsRequired();
 
             b.Property(x => x.PhoneNumber)
                 .HasMaxLength(20)
-                .HasColumnName("phoneNumber")
+                .HasColumnName("PHONE_NUMBER")
                 .HasColumnOrder(4)
-                .IsRequired();
+                .IsRequired(false);
 
             b.Property(x => x.Email)
                 .HasMaxLength(256)
-                .HasColumnName("email")
+                .HasColumnName("EMAIL")
                 .HasColumnOrder(5)
                 .IsRequired();
 
+            b.HasIndex(x => x.Email).IsUnique();
+
             b.Property(x => x.Password)
                 .HasMaxLength(512)
-                .HasColumnName("password")
+                .HasColumnName("PASSWORD")
                 .HasColumnOrder(6)
                 .IsRequired();
 
-            b.Property(x => x.Pepper)
+            b.Property(x => x.Salt)
                 .HasMaxLength(64)
-                .HasColumnName("pepper")
+                .HasColumnName("SALT")
                 .HasColumnOrder(7)
                 .IsRequired();
 
             b.Property(x => x.RefRole)
-                .HasColumnName("refRole")
+                .HasColumnName("REF_ROLE")
                 .HasColumnOrder(8)
                 .IsRequired();
 
             b.Property(x => x.CreatedAt)
                 .HasColumnType("datetime2")
-                .HasColumnName("createdAt")
+                .HasColumnName("CREATED_AT")
                 .HasColumnOrder(9)
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 
-            b.Property(x => x.TokenAccountCreated)
-                .HasColumnName("tokenAccountCreated")
-                .HasColumnOrder(10);
+            b.Property(x => x.IsEmailValidated)
+                .HasColumnName("IS_EMAIL_VALIDATED")
+                .HasColumnOrder(10)
+                .HasDefaultValue(false);
 
-            b.HasIndex(x => x.Email)
-                .IsUnique();
+            b.Property(x => x.TokenAccountCreated)
+                .HasColumnName("TOKEN_ACCOUNT_CREATED")
+                .HasColumnOrder(11)
+                .IsRequired(false);
 
             b.HasOne(x => x.Role)
                 .WithMany(r => r.Users)

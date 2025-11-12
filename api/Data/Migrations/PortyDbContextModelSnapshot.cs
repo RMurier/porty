@@ -8,7 +8,7 @@ using api.Data;
 
 #nullable disable
 
-namespace api.Migrations
+namespace api.Data.Migrations
 {
     [DbContext(typeof(PortyDbContext))]
     partial class PortyDbContextModelSnapshot : ModelSnapshot
@@ -28,13 +28,15 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)")
-                        .HasColumnName("NAME");
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.HasKey("Id");
 
@@ -46,25 +48,37 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Comments")
                         .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("COMMENTS")
+                        .HasColumnOrder(5);
 
                     b.Property<DateTime?>("EndDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("END_DATE")
+                        .HasColumnOrder(3);
 
                     b.Property<Guid>("RefBuisness")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_BUISNESS")
+                        .HasColumnOrder(6);
 
                     b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("START_DATE")
+                        .HasColumnOrder(2);
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("TITLE")
+                        .HasColumnOrder(4);
 
                     b.HasKey("Id");
 
@@ -78,13 +92,19 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<Guid>("RefCareer")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_CAREER")
+                        .HasColumnOrder(2);
 
                     b.Property<Guid>("RefSkill")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_SKILL")
+                        .HasColumnOrder(3);
 
                     b.HasKey("Id");
 
@@ -100,12 +120,16 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.HasKey("Id");
 
@@ -117,23 +141,193 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<DateTime?>("Date")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DATE")
+                        .HasColumnOrder(3);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.Property<string>("Url")
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("URL")
+                        .HasColumnOrder(4);
 
                     b.HasKey("Id");
 
                     b.ToTable("T_CERTIFICATE", (string)null);
+                });
+
+            modelBuilder.Entity("api.Data.Models.Language", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1);
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("CODE")
+                        .HasColumnOrder(2);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(3);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("T_LANGUAGE", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "fr",
+                            Name = "Français"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "en",
+                            Name = "English"
+                        });
+                });
+
+            modelBuilder.Entity("api.Data.Models.MailTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DESCRIPTION")
+                        .HasColumnOrder(3);
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IS_ACTIVE")
+                        .HasColumnOrder(4);
+
+                    b.Property<DateTime>("ModifiedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("MODIFIED_AT")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
+
+                    b.HasKey("Id");
+
+                    b.ToTable("T_MAIL_TEMPLATE", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("7961e375-87e8-417a-8c67-5717c31d84f1"),
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Description = "Mail envoyé lors de la création du compte avec un token pour valider le compte.",
+                            IsActive = true,
+                            ModifiedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Name = "ConfirmationInscription"
+                        });
+                });
+
+            modelBuilder.Entity("api.Data.Models.MailTemplateTranslation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("HtmlBody")
+                        .IsRequired()
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("HTML_BODY")
+                        .HasColumnOrder(4);
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("LOCALE")
+                        .HasColumnOrder(2);
+
+                    b.Property<Guid>("RefTemplate")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_TEMPLATE")
+                        .HasColumnOrder(7);
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("SUBJECT")
+                        .HasColumnOrder(3);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Locale");
+
+                    b.HasIndex("RefTemplate", "Locale")
+                        .IsUnique();
+
+                    b.ToTable("T_MAIL_TEMPLATE_TRANSLATION", (string)null);
                 });
 
             modelBuilder.Entity("api.Data.Models.Project", b =>
@@ -141,20 +335,28 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Description")
                         .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("DESCRIPTION")
+                        .HasColumnOrder(3);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.Property<string>("Url")
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("URL")
+                        .HasColumnOrder(5);
 
                     b.HasKey("Id");
 
@@ -165,13 +367,20 @@ namespace api.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
+                        .HasDefaultValueSql("NEWID()");
 
                     b.Property<Guid>("RefProject")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_PROJECT")
+                        .HasColumnOrder(2);
 
                     b.Property<Guid>("RefSkill")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_SKILL")
+                        .HasColumnOrder(3);
 
                     b.HasKey("Id");
 
@@ -187,16 +396,22 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Description")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("DESCRIPTION")
+                        .HasColumnOrder(3);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.HasKey("Id");
 
@@ -225,12 +440,16 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.HasKey("Id");
 
@@ -242,20 +461,28 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Certification")
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("CERTIFICATION")
+                        .HasColumnOrder(3);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("NAME")
+                        .HasColumnOrder(2);
 
                     b.Property<Guid>("RefCategory")
                         .HasMaxLength(128)
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_CATEGORY")
+                        .HasColumnOrder(4);
 
                     b.HasKey("Id");
 
@@ -269,26 +496,38 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID")
+                        .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<string>("Comments")
                         .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("COMMENTS")
+                        .HasColumnOrder(5);
 
                     b.Property<DateTime?>("EndDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("END_DATE")
+                        .HasColumnOrder(3);
 
                     b.Property<Guid>("RefSchool")
                         .HasMaxLength(128)
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_SCHOOL")
+                        .HasColumnOrder(6);
 
                     b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("START_DATE")
+                        .HasColumnOrder(2);
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("TITLE")
+                        .HasColumnOrder(4);
 
                     b.HasKey("Id");
 
@@ -302,14 +541,14 @@ namespace api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
-                        .HasColumnName("id")
+                        .HasColumnName("ID")
                         .HasColumnOrder(1)
                         .HasDefaultValueSql("NEWID()");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasColumnName("createdAt")
+                        .HasColumnName("CREATED_AT")
                         .HasColumnOrder(9)
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
@@ -317,53 +556,59 @@ namespace api.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)")
-                        .HasColumnName("email")
+                        .HasColumnName("EMAIL")
                         .HasColumnOrder(5);
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
-                        .HasColumnName("firstName")
+                        .HasColumnName("FIRSTNAME")
                         .HasColumnOrder(2);
+
+                    b.Property<bool?>("IsEmailValidated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IS_EMAIL_VALIDATED")
+                        .HasColumnOrder(10);
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
-                        .HasColumnName("lastName")
+                        .HasColumnName("LASTNAME")
                         .HasColumnOrder(3);
 
                     b.Property<string>("Password")
                         .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)")
-                        .HasColumnName("password")
+                        .HasColumnName("PASSWORD")
                         .HasColumnOrder(6);
 
-                    b.Property<string>("Pepper")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
-                        .HasColumnName("pepper")
-                        .HasColumnOrder(7);
-
                     b.Property<string>("PhoneNumber")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnName("phoneNumber")
+                        .HasColumnName("PHONE_NUMBER")
                         .HasColumnOrder(4);
 
                     b.Property<Guid>("RefRole")
                         .HasColumnType("uniqueidentifier")
-                        .HasColumnName("refRole")
+                        .HasColumnName("REF_ROLE")
                         .HasColumnOrder(8);
+
+                    b.Property<string>("Salt")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SALT")
+                        .HasColumnOrder(7);
 
                     b.Property<Guid?>("TokenAccountCreated")
                         .HasColumnType("uniqueidentifier")
-                        .HasColumnName("tokenAccountCreated")
-                        .HasColumnOrder(10);
+                        .HasColumnName("TOKEN_ACCOUNT_CREATED")
+                        .HasColumnOrder(11);
 
                     b.HasKey("Id");
 
@@ -403,6 +648,24 @@ namespace api.Migrations
                     b.Navigation("Career");
 
                     b.Navigation("Skill");
+                });
+
+            modelBuilder.Entity("api.Data.Models.MailTemplateTranslation", b =>
+                {
+                    b.HasOne("api.Data.Models.Language", null)
+                        .WithMany()
+                        .HasForeignKey("Locale")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("api.Data.Models.MailTemplate", "Template")
+                        .WithMany("Translations")
+                        .HasForeignKey("RefTemplate")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("api.Data.Models.ProjectSkill", b =>
@@ -471,6 +734,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Data.Models.Category", b =>
                 {
                     b.Navigation("Skills");
+                });
+
+            modelBuilder.Entity("api.Data.Models.MailTemplate", b =>
+                {
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("api.Data.Models.Project", b =>

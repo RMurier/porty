@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -17,10 +13,14 @@ namespace api.Data.Configurations
 
             builder.Property(x => x.Id)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             builder.Property(x => x.Name)
                 .HasMaxLength(100)
+                .HasColumnName("NAME")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             builder.HasMany(x => x.Skills)

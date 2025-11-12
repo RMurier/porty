@@ -14,16 +14,22 @@ namespace api.Data.Configurations
 
             b.Property(x => x.Id)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             b.Property(x => x.Name)
                 .HasMaxLength(64)
+                .HasColumnName("NAME")
+                .HasColumnOrder(2)
                 .IsRequired();
 
-            b.HasIndex(x => x.Name).
-                IsUnique();
+            b.HasIndex(x => x.Name)
+                .IsUnique();
 
             b.Property(x => x.Description)
+                .HasColumnName("DESCRIPTION")
+                .HasColumnOrder(3)
                 .HasMaxLength(64);
 
             b.HasData(

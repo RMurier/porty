@@ -15,8 +15,8 @@ env:
   FRONT_APP_NAME: porty-front
   CONTAINER_PORT: '8080'
   HEALTH_PATH: '/'
-  PROD_HOST: murierromain.com
-  STAGING_HOST: test.murierromain.com
+  PROD_HOST: romainmurier.com
+  STAGING_HOST: test.romainmurier.com
   REGISTRY: ghcr.io
   IMAGE_NAME: rmurier/porty
   FRONT_IMAGE_NAME: rmurier/porty-front

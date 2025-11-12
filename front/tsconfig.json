@@ -10,7 +10,8 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "types": ["vite/client", "node"],
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "baseUrl": "src"
   },
   "include": ["src"]
 }

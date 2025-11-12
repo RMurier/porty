@@ -10,9 +10,11 @@ namespace api.Controllers
     public class MailController : ControllerBase
     {
         private readonly IMail _mail;
-        public MailController(IMail mail)
+        private readonly IJsonLocalizer L;
+        public MailController(IMail mail, IJsonLocalizer l)
         {
             _mail = mail;
+            L = l;
         }
         [HttpPost("SendMail")]
         public async Task<IActionResult> SendMail([FromBody] SendMailIn model)
@@ -24,7 +26,7 @@ namespace api.Controllers
             }
             else
             {
-                return BadRequest("Une erreur est survenue lors de l'envoi du mail.");
+                return BadRequest(L["ServerError"]);
             }
         }
     }

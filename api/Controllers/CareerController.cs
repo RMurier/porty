@@ -11,9 +11,11 @@ namespace api.Controllers
     public class CareerController : ControllerBase
     {
         internal ICareer _career;
-        public CareerController(ICareer career)
+        internal IJsonLocalizer L;
+        public CareerController(ICareer career, IJsonLocalizer l)
         {
             _career = career;
+            L = l;
         }
 
         [HttpGet]
@@ -31,12 +33,12 @@ namespace api.Controllers
                 {
                     return Ok(buisness);
                 }
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
                 
             }
             catch
             {
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
             }
         }
     }

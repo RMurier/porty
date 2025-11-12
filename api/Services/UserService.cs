@@ -12,5 +12,15 @@ namespace api.Services
         {
             _ctx = ctx;
         }
+        public async Task<User?> GetUserByEmail(string email)
+        {
+            return await _ctx.Users.FirstOrDefaultAsync(x => x.Email == email);
+        }
+        public async Task<User> AddUser(User user)
+        {
+            _ctx.Users.Add(user);
+            await _ctx.SaveChangesAsync();
+            return user;
+        }
     }
 }

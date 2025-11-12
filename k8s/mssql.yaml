@@ -21,7 +21,7 @@ spec:
   selector: { app: mssql }
   ports:
     - name: tds-public
-      port: ${EXTERNAL_SQL_PORT}   # 1434 en staging, 1435 en prod
+      port: ${EXTERNAL_SQL_PORT}
       targetPort: 1433
 ---
 apiVersion: apps/v1

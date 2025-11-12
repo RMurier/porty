@@ -1,6 +1,10 @@
-﻿namespace api.Interfaces
+﻿using api.Data.Models;
+
+namespace api.Interfaces
 {
     public interface IUser
     {
+        public Task<User?> GetUserByEmail(string email);
+        public Task<User> AddUser(User user);
     }
 }

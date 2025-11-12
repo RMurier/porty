@@ -11,7 +11,15 @@ namespace api.Data.Configurations
             b.ToTable("T_PROJECT_SKILL");
             b.HasKey(x => x.Id);
 
+            b.Property(b => b.Id)
+                .HasDefaultValueSql("NEWID()")
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
+
             b.Property(x => x.RefProject)
+                .HasColumnName("REF_PROJECT")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             b.HasOne(x => x.Project)
@@ -20,6 +28,8 @@ namespace api.Data.Configurations
                 .OnDelete(DeleteBehavior.Cascade);
 
             b.Property(x => x.RefSkill)
+                .HasColumnName("REF_SKILL")
+                .HasColumnOrder(3)
                 .IsRequired();
 
             b.HasOne(x => x.Skill)

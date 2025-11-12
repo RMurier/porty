@@ -88,5 +88,13 @@ namespace api.Helpers
                 }
             }
         }
+
+
+        public static bool VerifyPassword(string storedHash, string computedHash)
+        {
+            var a = Convert.FromHexString(storedHash);
+            var b = Convert.FromHexString(computedHash);
+            return CryptographicOperations.FixedTimeEquals(a, b);
+        }
     }
 }

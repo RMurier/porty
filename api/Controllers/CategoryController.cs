@@ -11,9 +11,11 @@ namespace api.Controllers
     public class CategoryController : ControllerBase
     {
         internal ICategory _category;
-        public CategoryController(ICategory category)
+        internal IJsonLocalizer L;
+        public CategoryController(ICategory category, IJsonLocalizer l)
         {
             _category = category ?? throw new ArgumentNullException(nameof(category));
+            L = l;
         }
 
         [HttpGet]
@@ -31,12 +33,12 @@ namespace api.Controllers
                 {
                     return Ok(categories);
                 }
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
                 
             }
             catch
             {
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
             }
         }
     }

@@ -13,18 +13,26 @@ namespace api.Data.Configurations
 
             b.Property(x => x.Id)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             b.Property(x => x.Name)
                 .HasMaxLength(128)
+                .HasColumnName("NAME")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             b.Property(x => x.Date)
                 .HasColumnType("datetime2")
+                .HasColumnName("DATE")
+                .HasColumnOrder(3)
                 .IsRequired(false);
 
             b.Property(x => x.Url)
                 .HasMaxLength(256)
+                .HasColumnName("URL")
+                .HasColumnOrder(4)
                 .IsRequired(false);
         }
     }

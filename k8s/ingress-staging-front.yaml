@@ -11,10 +11,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: ["test.murierromain.com"]
+    - hosts: ["test.romainmurier.com"]
       secretName: porty-staging-tls
   rules:
-    - host: test.murierromain.com
+    - host: test.romainmurier.com
       http:
         paths:
           - path: /

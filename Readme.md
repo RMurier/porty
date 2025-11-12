@@ -6,8 +6,8 @@ Portfolio full-stack composé de :
 - **Infra** : **K3s** (Kubernetes), **Traefik** (Ingress), **cert-manager** (TLS), **GHCR** (registry), **GitHub Actions** (CI/CD).
 
 Deux environnements :
-- **staging** → `test.murierromain.com` (branche `develop`)
-- **production** → `murierromain.com` (branche `master`)
+- **staging** → `test.romainmurier.com` (branche `develop`)
+- **production** → `romainmurier.com` (branche `master`)
 
 ---
 
@@ -38,7 +38,7 @@ flowchart LR
   DNS --> LB[Traefik LoadBalancer]
 
   subgraph STAGING[Namespace staging]
-    H_STG[Host test.murierromain.com]
+    H_STG[Host test.romainmurier.com]
     ING_STG_API[Ingress porty-staging-api]
     ING_STG_FRONT[Ingress porty-staging-front]
     SVC_STG_API[Service porty 80]
@@ -50,7 +50,7 @@ flowchart LR
   end
 
   subgraph PROD[Namespace prod]
-    H_PROD[Host murierromain.com]
+    H_PROD[Host romainmurier.com]
     ING_PROD_API[Ingress porty-prod-api]
     ING_PROD_FRONT[Ingress porty-prod-front]
     SVC_PROD_API[Service porty 80]
@@ -201,8 +201,8 @@ set ASPNETCORE_URLS=http://0.0.0.0:8080 && dotnet run
 ## DNS et TLS
 
 1. Pointe les DNS :
-   - `test.murierromain.com` → IP du LB Traefik (`kubectl -n kube-system get svc traefik -o wide`)
-   - `murierromain.com` → même IP
+   - `test.romainmurier.com` → IP du LB Traefik (`kubectl -n kube-system get svc traefik -o wide`)
+   - `romainmurier.com` → même IP
 2. Applique `cluster-issuer.yaml`.
 3. Vérifie le certificat :
    ```bash
@@ -263,7 +263,7 @@ kubectl -n staging annotate ingress porty-staging-api   traefik.ingress.kubernet
 
 # Test HTTP avec Host
 LB=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-curl -sI -H "Host: test.murierromain.com" "http://$LB/index.html" | head -n1
+curl -sI -H "Host: test.romainmurier.com" "http://$LB/index.html" | head -n1
 ```
 
 ### Certificat absent

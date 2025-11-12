@@ -13,9 +13,13 @@ namespace api.Data.Configurations
 
             b.Property(x => x.Id)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             b.Property(x => x.RefCareer)
+                .HasColumnName("REF_CAREER")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             b.HasOne(x => x.Career)
@@ -24,6 +28,8 @@ namespace api.Data.Configurations
                 .OnDelete(DeleteBehavior.Cascade);
 
             b.Property(x => x.RefSkill)
+                .HasColumnName("REF_SKILL")
+                .HasColumnOrder(3)
                 .IsRequired();
 
             b.HasOne(x => x.Skill)

@@ -1,0 +1,22 @@
+{
+    "Home": {
+        "title": "Bonjour, je suis"
+    },
+    "Header": {
+        "account": "Mon compte",
+        "logout": "Déconnexion",
+        "signin": "Se connecter",
+        "signup": "S'enregistrer",
+        "guest": "invité",
+        "categories": {
+            "home": "Accueil",
+            "projects": "Projets",
+            "skills": "Compétences", 
+            "contact": "Contact"
+        }
+    },
+    "Project": {
+        "title": "Projets",
+        "seeMore": "Voir plus"
+    }
+}

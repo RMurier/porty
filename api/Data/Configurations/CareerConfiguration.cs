@@ -13,22 +13,34 @@ namespace api.Data.Configurations
 
             b.Property(x => x.Id)
                 .HasDefaultValueSql("NEWID()")
-                .ValueGeneratedOnAdd();
+                .ValueGeneratedOnAdd()
+                .HasColumnName("ID")
+                .HasColumnOrder(1);
 
             b.Property(x => x.StartDate)
+                .HasColumnName("START_DATE")
+                .HasColumnOrder(2)
                 .IsRequired();
 
             b.Property(x => x.EndDate)
+                .HasColumnName("END_DATE")
+                .HasColumnOrder(3)
                 .IsRequired(false);
 
             b.Property(x => x.Title)
                 .HasMaxLength(128)
+                .HasColumnName("TITLE")
+                .HasColumnOrder(4)
                 .IsRequired();
 
             b.Property(x => x.Comments)
+                .HasColumnName("COMMENTS")
+                .HasColumnOrder(5)
                 .HasMaxLength(512);
 
             b.Property(x => x.RefBuisness)
+                .HasColumnName("REF_BUISNESS")
+                .HasColumnOrder(6)
                 .IsRequired();
 
             b.HasOne(x => x.Buisness)

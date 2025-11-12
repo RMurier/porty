@@ -1,6 +1,9 @@
+import { apiFetch } from "../lib/api";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const Home: React.FC = () => {
+    const { t } = useTranslation();
   const [apiState, setApiState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [apiStatus, setApiStatus] = useState<number | null>(null);
   const [apiBody, setApiBody] = useState<string>("");
@@ -10,7 +13,7 @@ const Home: React.FC = () => {
     setApiStatus(null);
     setApiBody("");
     try {
-      const res = await fetch("/api/buisness", { method: "GET", cache: "no-store" });
+      const res = await apiFetch("/api/buisness", { method: "GET", cache: "no-store" });
       setApiStatus(res.status);
       const text = await res.text();
       setApiBody(() => {
@@ -32,10 +35,10 @@ const Home: React.FC = () => {
       <div className="container mx-auto px-4 py-20 lg:py-32">
         <div className="text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4">
-            Bonjour, je suis <span className="text-blue-600 dark:text-blue-400">Romain</span>
+            {t('Home.title')} <span className="text-blue-600 dark:text-blue-400">Romain</span>
           </h1>
           <p className="text-lg sm:text-xl max-w-2xl mx-auto mb-8">
-            Développeur full-stack passionné par la création d’applications web modernes avec React, .NET et SQL Server.
+            Développeur full-stack passionné par la création d'applications web modernes avec React, .NET et SQL Server.
           </p>
           <a
             href="/projects"
@@ -127,7 +130,7 @@ const Home: React.FC = () => {
               {apiStatus !== null && <span className="ml-2 text-zinc-500">HTTP {apiStatus}</span>}
             </div>
             {apiBody && (
-              <pre className="p-3 bg-white dark:bg-zinc-800 rounded-md overflow-auto max-h-96 whitespace-pre-wrap break-words">
+              <pre className="p-3 bg-white dark:bg-zinc-800 rounded-md overflow-auto max-h-96 whitespace-pre-wrap wrap-break-words">
                 {apiBody}
               </pre>
             )}

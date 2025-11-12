@@ -1,0 +1,7 @@
+{
+  "EmailAlreadyUsed": "Email already used.",
+  "InvalidCredentials": "Invalid credentials.",
+  "EmailNotVerified": "Email not verified.",
+  "ServerError": "An error has occurred, please try again later.",
+  "InvalidRefreshToken": "Invalid refresh token"
+}

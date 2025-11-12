@@ -2,17 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from 'react-i18next';
 
 type NavLink = { label: string; href: string };
 
 const links: NavLink[] = [
-  { label: "Accueil", href: "/" },
-  { label: "Projets", href: "/projects" },
-  { label: "Compétences", href: "/skills" },
-  { label: "Contact", href: "/contact" },
+  { label: "Header.categories.home", href: "/" },
+  { label: "Header.categories.projects", href: "/projects" },
+  { label: "Header.categories.skills", href: "/skills" },
+  { label: "Header.categories.contact", href: "/contact" },
 ];
 
 const AppBar: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -65,9 +67,7 @@ const AppBar: React.FC = () => {
 
 
   const handleLogin = () => {
-    setIsAuthenticated(true);
-    setUserName("Romain");
-    navigate("/me");
+    navigate("/sign-in");
   };
   const handleLogout = () => {
     setIsAuthenticated(false);
@@ -111,7 +111,7 @@ const AppBar: React.FC = () => {
                       : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
                   ].join(" ")}
                 >
-                  {l.label}
+                  {t(l.label)}
                 </Link>
               );
             })}
@@ -149,7 +149,7 @@ const AppBar: React.FC = () => {
                           {userName}
                         </span>
                       ) : (
-                        "Invité"
+                        t('Header.guest')
                       )}
                     </div>
                     <div className="h-px bg-zinc-200 dark:bg-zinc-800" />
@@ -160,7 +160,7 @@ const AppBar: React.FC = () => {
                           to="/me"
                           className="block px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          Mon compte
+                          {t('Header.account')}
                         </Link>
                         <Link
                           role="menuitem"
@@ -174,7 +174,7 @@ const AppBar: React.FC = () => {
                           onClick={handleLogout}
                           className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
-                          Déconnexion
+                          {t('Header.logout')}
                         </button>
                       </>
                     ) : (
@@ -184,14 +184,14 @@ const AppBar: React.FC = () => {
                           onClick={handleLogin}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          Se connecter
+                          {t('Header.signin')}
                         </button>
                         <button
                           role="menuitem"
                           onClick={() => navigate("/sign-up")}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          S’enregistrer
+                          {t('Header.signup')}
                         </button>
                       </>
                     )}
@@ -273,13 +273,13 @@ const AppBar: React.FC = () => {
                     onClick={handleLogin}
                     className="w-full text-left px-2 py-3 text-base rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
                   >
-                    Se connecter
+                    {t('Header.signin')}
                   </button>
                   <button
                     onClick={() => navigate("/sign-up")}
                     className="w-full text-left px-2 py-3 text-base rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
                   >
-                    S’enregistrer
+                    {t('Header.signin')}
                   </button>
                 </>
               )}

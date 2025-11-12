@@ -1,0 +1,22 @@
+{
+    "Home": {
+        "title": "Hello, I am"
+    },
+    "Header": {
+        "account": "My account",
+        "logout": "Logout",
+        "signin": "Sign-in",
+        "signup": "Sign-up",
+        "guest": "guest",
+        "categories": {
+            "home": "Home",
+            "projects": "Projects",
+            "skills": "Skills",
+            "contact": "Contact"
+        }
+    },
+    "Project": {
+        "title": "Projects",
+        "seeMore": "See more"
+    }
+}

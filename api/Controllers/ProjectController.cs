@@ -12,9 +12,11 @@ namespace api.Controllers
     public class ProjectController : ControllerBase
     {
         internal IProject _project;
-        public ProjectController(IProject project)
+        internal IJsonLocalizer L;
+        public ProjectController(IProject project, IJsonLocalizer l)
         {
             _project = project ?? throw new ArgumentNullException(nameof(project));
+            L = l;
         }
 
         [HttpGet]
@@ -32,12 +34,12 @@ namespace api.Controllers
                 {
                     return Ok(projects);
                 }
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
                 
             }
             catch
             {
-                return BadRequest("Une erreur est survenue. Veuillez réessayer plus tard.");
+                return BadRequest(L["ServerError"]);
             }
         }
     }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, Lock, User, Eye, EyeOff, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiFetch } from "../lib/api";
+import { apiFetch } from "../lib/apiFetch";
 
 const SignUp: React.FC = () => {
   const { t } = useTranslation();

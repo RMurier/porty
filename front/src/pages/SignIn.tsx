@@ -2,9 +2,8 @@ import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiFetch } from "../lib/api";
-
-const api = (path: string) => `${import.meta.env.VITE_API_URL ?? ""}${path}`;
+import { apiFetch } from "../lib/apiFetch";
+import { useAuthStore, AuthUser } from "../stores/authStore";
 
 const SignIn: React.FC = () => {
   const { t } = useTranslation();
@@ -13,17 +12,22 @@ const SignIn: React.FC = () => {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from ?? "/";
 
+  const setAuth = useAuthStore((state) => state.setAuth);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+
     if (!email || !password) {
       setErr(t("form.allRequired"));
       return;
     }
+
     setLoading(true);
     try {
       const res = await apiFetch("/api/auth/sign-in", {
@@ -31,21 +35,45 @@ const SignIn: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+      console.log(res)
+      console.log(1)
 
       if (!res.ok) {
+      console.log(2)
         const txt = await res.text().catch(() => "");
+      console.log(3)
         throw new Error(txt || t("errors.generic"));
       }
+      console.log(4)
 
-      let token = "";
-      try {
-        const data = await res.json();
-        token = data?.token ?? "";
-        if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
-      } catch {
+      const data = await res.json();
+      console.log(5)
+
+      const accessToken: string | undefined = data?.accessToken;
+      console.log(6)
+      const refreshToken: string | undefined = data?.refreshToken;
+      console.log(7)
+
+      if (!accessToken || !refreshToken) {
+      console.log(8)
+        throw new Error(t("errors.generic"));
       }
-      if (token) localStorage.setItem("token", token);
-      window.dispatchEvent(new Event("auth-changed"));
+
+      const user: AuthUser = {
+        id: data.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        isEmailValidated: data.isEmailValidated,
+        createdAt: data.createdAt,
+      };
+
+      setAuth({
+        user,
+        accessToken,
+        refreshToken,
+      });
+
       navigate(from, { replace: true });
     } catch (e: any) {
       setErr(e?.message || t("errors.generic"));
@@ -122,7 +150,10 @@ const SignIn: React.FC = () => {
 
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
           {t("signIn.noAccount")}{" "}
-          <Link to="/sign-up" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <Link
+            to="/sign-up"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
             {t("signIn.createAccount")}
           </Link>
         </p>

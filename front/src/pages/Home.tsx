@@ -1,4 +1,4 @@
-import { apiFetch } from "../lib/api";
+import { apiFetch } from "../lib/apiFetch";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 

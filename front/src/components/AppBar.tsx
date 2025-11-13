@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from "react-i18next";
+import { useAuthStore } from "../stores/authStore";
 
 type NavLink = { label: string; href: string };
 
@@ -18,11 +19,10 @@ const AppBar: React.FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  // Auth simulée. Branche sur ta vraie auth.
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState<string>("");
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const isAuthenticated = !!user;
 
-  // UI state
   const [elevated, setElevated] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,7 +38,9 @@ const AppBar: React.FC = () => {
 
   useEffect(() => {
     const onClickAway = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", onClickAway);
     return () => document.removeEventListener("mousedown", onClickAway);
@@ -60,18 +62,25 @@ const AppBar: React.FC = () => {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const initials = useMemo(
-    () => (userName?.trim() ? userName.trim()[0].toUpperCase() : "U"),
-    [userName]
+  const displayName = useMemo(
+    () =>
+      user
+        ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email
+        : "",
+    [user]
   );
 
 
+  const initials = useMemo(
+    () => (displayName?.trim() ? displayName.trim()[0].toUpperCase() : "U"),
+    [displayName]
+  );
   const handleLogin = () => {
     navigate("/sign-in");
   };
+
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUserName("");
+    logout();
     navigate("/");
   };
 
@@ -93,10 +102,11 @@ const AppBar: React.FC = () => {
               alt="Logo Porty"
               className="h-8 w-8 rounded-full object-cover"
             />
-            <span className="truncate text-lg sm:text-xl font-semibold dark:text-white">Porty</span>
+            <span className="truncate text-lg sm:text-xl font-semibold dark:text-white">
+              Porty
+            </span>
           </Link>
 
-          {/* Liens desktop */}
           <div className="hidden md:flex items-center gap-6">
             {links.map((l) => {
               const active = pathname === l.href;
@@ -116,6 +126,7 @@ const AppBar: React.FC = () => {
               );
             })}
           </div>
+
           <div className="flex items-center gap-2">
             <div className="relative" ref={menuRef}>
               <button
@@ -124,7 +135,7 @@ const AppBar: React.FC = () => {
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen((v) => !v)}
                 className="h-10 w-10 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white/60 dark:bg-zinc-900/60 flex items-center justify-center"
-                title={isAuthenticated ? userName : "Compte"}
+                title={isAuthenticated ? displayName : "Compte"}
               >
                 <User className="h-5 w-5" color="currentColor" strokeWidth={2} />
                 <span className="sr-only">Ouvrir le menu compte</span>
@@ -146,10 +157,10 @@ const AppBar: React.FC = () => {
                           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800 text-xs font-semibold">
                             {initials}
                           </span>
-                          {userName}
+                          {displayName}
                         </span>
                       ) : (
-                        t('Header.guest')
+                        t("Header.guest")
                       )}
                     </div>
                     <div className="h-px bg-zinc-200 dark:bg-zinc-800" />
@@ -160,21 +171,14 @@ const AppBar: React.FC = () => {
                           to="/me"
                           className="block px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          {t('Header.account')}
-                        </Link>
-                        <Link
-                          role="menuitem"
-                          to="/projects"
-                          className="block px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        >
-                          Mes projets
+                          {t("Header.account")}
                         </Link>
                         <button
                           role="menuitem"
                           onClick={handleLogout}
                           className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
-                          {t('Header.logout')}
+                          {t("Header.logout")}
                         </button>
                       </>
                     ) : (
@@ -184,14 +188,14 @@ const AppBar: React.FC = () => {
                           onClick={handleLogin}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          {t('Header.signin')}
+                          {t("Header.signin")}
                         </button>
                         <button
                           role="menuitem"
                           onClick={() => navigate("/sign-up")}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          {t('Header.signup')}
+                          {t("Header.signup")}
                         </button>
                       </>
                     )}
@@ -200,7 +204,6 @@ const AppBar: React.FC = () => {
               </AnimatePresence>
             </div>
 
-            {/* Burger mobile */}
             <button
               type="button"
               className="md:hidden h-10 w-10 inline-flex items-center justify-center"
@@ -219,7 +222,6 @@ const AppBar: React.FC = () => {
         </div>
       </nav>
 
-      {/* Menu mobile */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -245,7 +247,7 @@ const AppBar: React.FC = () => {
                     ].join(" ")}
                     onClick={() => setMobileOpen(false)}
                   >
-                    {l.label}
+                    {t(l.label)}
                   </Link>
                 );
               })}
@@ -257,11 +259,15 @@ const AppBar: React.FC = () => {
                   <Link
                     to="/me"
                     className="block px-2 py-3 text-base rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    onClick={() => setMobileOpen(false)}
                   >
                     Mon compte
                   </Link>
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      handleLogout();
+                      setMobileOpen(false);
+                    }}
                     className="w-full text-left px-2 py-3 text-base rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     Déconnexion
@@ -270,16 +276,22 @@ const AppBar: React.FC = () => {
               ) : (
                 <>
                   <button
-                    onClick={handleLogin}
+                    onClick={() => {
+                      handleLogin();
+                      setMobileOpen(false);
+                    }}
                     className="w-full text-left px-2 py-3 text-base rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
                   >
-                    {t('Header.signin')}
+                    {t("Header.signin")}
                   </button>
                   <button
-                    onClick={() => navigate("/sign-up")}
+                    onClick={() => {
+                      navigate("/sign-up");
+                      setMobileOpen(false);
+                    }}
                     className="w-full text-left px-2 py-3 text-base rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
                   >
-                    {t('Header.signin')}
+                    {t("Header.signup")}
                   </button>
                 </>
               )}

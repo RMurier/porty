@@ -1,7 +1,12 @@
 {
   "EmailAlreadyUsed": "Email already used.",
+  "EmailAndPasswordNecessary": "The email and password are necessary.",
   "InvalidCredentials": "Invalid credentials.",
   "EmailNotVerified": "Email not verified.",
   "ServerError": "An error has occurred, please try again later.",
-  "InvalidRefreshToken": "Invalid refresh token"
+  "InvalidRefreshToken": "Invalid refresh token",
+  "InvalidParameters": "Invalid parameters.",
+  "UserNotFound": "User not found.",
+  "EmailConfirmInvalidOrExpired": "Confirmation link invalid or expired.",
+  "EmailConfirmOk": "Email confirmed. You can now sign in."
 }

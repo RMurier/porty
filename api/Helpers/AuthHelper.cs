@@ -92,9 +92,20 @@ namespace api.Helpers
 
         public static bool VerifyPassword(string storedHash, string computedHash)
         {
-            var a = Convert.FromHexString(storedHash);
-            var b = Convert.FromHexString(computedHash);
-            return CryptographicOperations.FixedTimeEquals(a, b);
+            if (string.IsNullOrWhiteSpace(storedHash) || string.IsNullOrWhiteSpace(computedHash))
+                return false;
+
+            try
+            {
+                byte[] storedBytes = Convert.FromBase64String(storedHash);
+                byte[] computedBytes = Convert.FromBase64String(computedHash);
+
+                return CryptographicOperations.FixedTimeEquals(storedBytes, computedBytes);
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
     }
 }

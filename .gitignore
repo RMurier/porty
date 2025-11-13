@@ -671,3 +671,7 @@ front/.env
 package-lock.json
 docker-compose.dev.yml.b64
 docker-compose.yml.b64
+
+#OPS
+/ops/certs/porty.localhost-key.pem
+/ops/certs/porty.localhost.pem

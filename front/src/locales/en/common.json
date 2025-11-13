@@ -15,8 +15,49 @@
             "contact": "Contact"
         }
     },
+    "form": {
+        "firstname": "Firstname",
+        "lastname": "Lastname",
+        "email": "Email",
+        "password": "Password",
+        "passwordConfirm": "Confirm password",
+        "allRequired": "All fields are required.",
+        "pwdMismatch": "The passwords do not match.",
+        "hide": "Hide",
+        "show": "Show",
+        "retry": "Retry"
+    },
     "Project": {
         "title": "Projects",
         "seeMore": "See more"
+    },
+    "errors": {
+        "generic": "An error has occurred, please try again later."
+    },
+    "signUp": {
+        "title": "Create an account",
+        "resent": "Resend the email.",
+        "checkTitle": "Confirm your email.",
+        "checkDesc": "We have sent you a confirmation email. Click on the link to activate your account.",
+        "resendIn": "Resend in {{s}}s",
+        "help": "Nothing received? Check the spam or try again.",
+        "backToLoginHint": "You can log in after confirmation.",
+        "createAccount": "Create an account",
+        "alreadyRegistred": "Already registered ?"
+    },
+    "signIn": {
+        "title": "Sign-in",
+        "createAccount": "Create an account",
+        "noAccount": "No account ?"
+    },
+    "emailConfirm": {
+        "missingParams": "Missing parameters.",
+        "titleLoading": "Checking...",
+        "subtitle": "Please wait a few seconds.",
+        "titleSuccess": "Confirmed e-mail address",
+        "success": "Your account is now activated. You can log in.",
+        "titleError": "Verification failed",
+        "error": "The link is invalid or has expired. Request a new confirmation email.",
+        "note": "Ensure you use the most recent link received by e-mail."
     }
 }

@@ -22,5 +22,14 @@ namespace api.Services
             await _ctx.SaveChangesAsync();
             return user;
         }
+        public async Task<User> ConfirmUser(User user)
+        {
+            User? updateUser = _ctx.Users.FirstOrDefault(x => x.Id == user.Id);
+            updateUser.TokenAccountCreated = null;
+            updateUser.IsEmailValidated = true;
+            await _ctx.SaveChangesAsync();
+            return user;
+        }
+
     }
 }

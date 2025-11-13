@@ -11,12 +11,53 @@
         "categories": {
             "home": "Accueil",
             "projects": "Projets",
-            "skills": "Compétences", 
+            "skills": "Compétences",
             "contact": "Contact"
         }
+    },
+    "form": {
+        "firstname": "Prénom",
+        "lastname": "Nom",
+        "email": "Email",
+        "password": "Mot de passe",
+        "passwordConfirm": "Confirmer le mot de passe",
+        "allRequired": "Tous les champs sont requis.",
+        "pwdMismatch": "Les mots de passe ne correspondent pas.",
+        "hide": "Masquer",
+        "show": "Afficher",
+        "retry": "Réessayer"
     },
     "Project": {
         "title": "Projets",
         "seeMore": "Voir plus"
+    },
+    "errors": {
+        "generic": "Une erreur est survenue, merci de réessayer ultérieurement."
+    },
+    "signUp": {
+        "title": "Créer un compte",
+        "resent": "Renvoyer l'email",
+        "checkTitle": "Confirme ton adresse e-mail",
+        "checkDesc": "Nous t'avons envoyé un e-mail de confirmation. Clique sur le lien pour activer ton compte.",
+        "resendIn": "Renvoyer dans {{s}}s",
+        "help": "Rien reçu ? Vérifie les spams ou réessaie.",
+        "backToLoginHint": "Tu peux te connecter après confirmation.",
+        "createAccount": "Créer un compte",
+        "alreadyRegistred": "Déjà inscrit ?"
+    },
+    "signIn": {
+        "title": "Connexion",
+        "createAccount": "Créer un compte",
+        "noAccount": "Pas de compte ?"
+    },
+    "emailConfirm": {
+        "missingParams": "Paramètres manquants.",
+        "titleLoading": "Vérification en cours...",
+        "subtitle": "Merci de patienter quelques secondes.",
+        "titleSuccess": "Adresse e-mail confirmée",
+        "success": "Ton compte est maintenant activé. Tu peux te connecter.",
+        "titleError": "Échec de la vérification",
+        "error": "Le lien est invalide ou expiré. Demande un nouvel e-mail de confirmation.",
+        "note": "Assurez-vous d'utiliser le lien le plus récent reçu par e-mail."
     }
 }

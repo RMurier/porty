@@ -1,6 +1,7 @@
 using api.Data;
 using api.Interfaces;
 using api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -13,7 +14,6 @@ builder.Services.AddLocalization();
 var cs = builder.Configuration.GetConnectionString("DefaultConnection")
          ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante dans configuration");
 
-
 builder.Services.AddDbContext<PortyDbContext>(options =>
 {
     options.UseSqlServer(cs);
@@ -21,7 +21,6 @@ builder.Services.AddDbContext<PortyDbContext>(options =>
     options.EnableSensitiveDataLogging();
 });
 
-//Gestion des langues
 string[] supported = new[] { "fr", "en" };
 builder.Services.Configure<RequestLocalizationOptions>(o =>
 {
@@ -35,7 +34,6 @@ builder.Services.Configure<RequestLocalizationOptions>(o =>
     o.FallBackToParentUICultures = true;
 });
 
-//Services
 builder.Services.AddScoped<IAuth, AuthService>();
 builder.Services.AddScoped<IBuisness, BuisnessService>();
 builder.Services.AddScoped<ICareer, CareerService>();
@@ -77,16 +75,29 @@ builder.Services.AddCors(opts =>
 
 var app = builder.Build();
 
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+var fwd = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+};
+fwd.KnownNetworks.Clear();
+fwd.KnownProxies.Clear();
+app.UseForwardedHeaders(fwd);
+
+var loc = app.Services.GetRequiredService<IOptions<RequestLocalizationOptions>>().Value;
+app.UseRequestLocalization(loc);
+
 app.UseHttpsRedirection();
 
 app.UseCors("Front");
+
 app.Use(async (context, next) =>
 {
     if (context.Request.Path == "/")
@@ -94,11 +105,8 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = StatusCodes.Status204NoContent;
         return;
     }
-
     await next();
 });
-var loc = app.Services.GetRequiredService<IOptions<RequestLocalizationOptions>>().Value;
-app.UseRequestLocalization();
 
 app.MapControllers();
 

@@ -6,5 +6,6 @@ namespace api.Interfaces
     {
         public Task<User?> GetUserByEmail(string email);
         public Task<User> AddUser(User user);
+        public Task<User> ConfirmUser(User user);
     }
 }

@@ -7,7 +7,7 @@ import { apiFetch } from "../lib/api";
 const api = (path: string) => `${import.meta.env.VITE_API_URL ?? ""}${path}`;
 
 const SignIn: React.FC = () => {
-  const {t} = useTranslation();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -21,20 +21,22 @@ const SignIn: React.FC = () => {
     e.preventDefault();
     setErr(null);
     if (!email || !password) {
-      setErr("Email et mot de passe requis.");
+      setErr(t("form.allRequired"));
       return;
     }
     setLoading(true);
     try {
-      const res = await apiFetch(api("/auth/sign-in"), {
+      const res = await apiFetch("/api/auth/sign-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(txt || `Erreur ${res.status}`);
+        throw new Error(txt || t("errors.generic"));
       }
+
       let token = "";
       try {
         const data = await res.json();
@@ -46,7 +48,7 @@ const SignIn: React.FC = () => {
       window.dispatchEvent(new Event("auth-changed"));
       navigate(from, { replace: true });
     } catch (e: any) {
-      setErr(e.message || "Échec de la connexion.");
+      setErr(e?.message || t("errors.generic"));
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,10 @@ const SignIn: React.FC = () => {
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900 px-4">
       <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-1 text-zinc-900 dark:text-zinc-100">Connexion</h1>
+        <h1 className="text-2xl font-semibold mb-1 text-zinc-900 dark:text-zinc-100">
+          {t("signIn.title")}
+        </h1>
+
         {err && (
           <div className="mb-4 rounded-lg border border-red-300/60 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
             {err}
@@ -64,7 +69,9 @@ const SignIn: React.FC = () => {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-1 block text-sm text-zinc-600 dark:text-zinc-300">Email</span>
+            <span className="mb-1 block text-sm text-zinc-600 dark:text-zinc-300">
+              {t("form.email")}
+            </span>
             <div className="flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3">
               <Mail className="h-4 w-4 text-zinc-400" aria-hidden />
               <input
@@ -79,7 +86,9 @@ const SignIn: React.FC = () => {
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-sm text-zinc-600 dark:text-zinc-300">Mot de passe</span>
+            <span className="mb-1 block text-sm text-zinc-600 dark:text-zinc-300">
+              {t("form.password")}
+            </span>
             <div className="flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3">
               <Lock className="h-4 w-4 text-zinc-400" aria-hidden />
               <input
@@ -92,7 +101,7 @@ const SignIn: React.FC = () => {
               />
               <button
                 type="button"
-                aria-label={showPwd ? "Masquer" : "Afficher"}
+                aria-label={showPwd ? t("form.hide") : t("form.show")}
                 onClick={() => setShowPwd((v) => !v)}
                 className="p-1 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               >
@@ -106,15 +115,15 @@ const SignIn: React.FC = () => {
             disabled={loading}
             className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white py-2.5 font-medium disabled:opacity-60"
           >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {t('Header.signin')}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {t("Header.signin")}
           </button>
         </form>
 
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
-          Pas de compte ?{" "}
+          {t("signIn.noAccount")}{" "}
           <Link to="/sign-up" className="text-blue-600 dark:text-blue-400 hover:underline">
-            Créer un compte
+            {t("signIn.createAccount")}
           </Link>
         </p>
       </div>

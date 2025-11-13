@@ -7,6 +7,7 @@ import "./index.css";
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import EmailConfirmation from './pages/EmailConfirmation';
 import LocaleSwitcher from './components/LocaleSwitcher';
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/" element={<Home />} />
           <Route path="/sign-in" element={<SignIn />} />
           <Route path="/sign-up" element={<SignUp />} />
+          <Route path="/email-confirmation" element={<EmailConfirmation />} />
         </Routes>
       </div>
     </BrowserRouter>

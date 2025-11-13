@@ -92,7 +92,7 @@ const Home: React.FC = () => {
               <div className="p-6">
                 <h3 className="text-2xl font-semibold mb-2">Nom du projet 1</h3>
                 <p className="mb-4">
-                  Courte description du projet, ce que j’ai réalisé, technologies utilisées.
+                  Courte description du projet, ce que j'ai réalisé, technologies utilisées.
                 </p>
                 <a href="/projects" className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
                   Voir plus →

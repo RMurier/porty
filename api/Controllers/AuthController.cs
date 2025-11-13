@@ -5,6 +5,8 @@ using api.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System;
 using System.Globalization;
 
 namespace api.Controllers
@@ -101,6 +103,9 @@ namespace api.Controllers
             {
                 return BadRequest(L["ServerError"]);
             }
+            var scheme = Request.Scheme;               
+            var host = Request.Host.ToUriComponent();
+            var origin = $"{scheme}://{host}";
             User newUser = new User();
             newUser.FirstName = AuthHelper.EncryptString(sectionJWT["NameKey"], user.FirstName);
             newUser.LastName = AuthHelper.EncryptString(sectionJWT["SurnameKey"], user.LastName);
@@ -108,14 +113,46 @@ namespace api.Controllers
             newUser.Salt = AuthHelper.GenerateSalt();
             newUser.Password = AuthHelper.HashPassword(user.Password, newUser.Salt, sectionJWT["PasswordPepper"]);
             newUser.RefRole = new Guid("74737d58-a69f-4df7-bf9a-777297a4d6d6");
+            newUser.TokenAccountCreated = Guid.NewGuid(); ;
             newUser = await _user.AddUser(newUser);
             await _mail.SendEmail(user.Email, mailInscription.Subject, mailInscription.HtmlBody
                 .Replace("@@NAME", $"{user.FirstName} {user.LastName}")
-                .Replace("@@LIEN_CONFIRMATION", $"{_config["FrontBaseUrl"]}/email-confirmation?email={user.Email}&token={newUser.TokenAccountCreated}")
+                .Replace("@@LIEN_CONFIRMATION", $"{origin}/email-confirmation?email={user.Email}&token={newUser.TokenAccountCreated}")
                 .Replace("@@APP_NAME", _config["APP_NAME"])
-                .Replace("@@Year", DateTime.Now.ToString("yyyy"))
+                .Replace("@@YEAR", DateTime.Now.ToString("yyyy"))
             );
             return CreatedAtAction(nameof(AddUser), new { id = newUser.Id }, newUser);
+        }
+
+
+        [HttpPost("confirm-email")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Token))
+                return BadRequest(new { message = L["InvalidParameters"] });
+
+            IConfigurationSection jwt = _config.GetSection("Jwt");
+            string encEmail = AuthHelper.EncryptString(jwt["EmailKey"]!, body.Email);
+
+            User? user = await _user.GetUserByEmail(encEmail);
+            if (user == null)
+            {
+                return NotFound(new { message = L["UserNotFound"] });
+            }
+
+            if (string.IsNullOrEmpty(user.TokenAccountCreated.ToString()) ||
+                !string.Equals(user.TokenAccountCreated.ToString(), body.Token, StringComparison.Ordinal))
+            {
+                return Conflict(new { message = L["EmailConfirmInvalidOrExpired"] });
+            }
+
+            user.IsEmailValidated = true;
+            user.TokenAccountCreated = null;
+
+            await _user.ConfirmUser(user);
+
+            return Ok(new { message = L["EmailConfirmOk"] });
         }
     }
 }

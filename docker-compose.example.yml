@@ -23,11 +23,26 @@ services:
       - ./api:/app
       - ~/.aspnet/https:/https:ro
     environment:
-      ASPNETCORE_ENVIRONMENT: "Production"
-      ASPNETCORE_URLS: "https://0.0.0.0:8080"
+      APP_NAME": "Porty"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "https://0.0.0.0:9090;http://0.0.0.0:9091"
       ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
       ASPNETCORE_Kestrel__Certificates__Default__Password: "devcert"
       ConnectionStrings__DefaultConnection: "Server=db;Database=[DB_SERVER];User Id=[DB_USER];Password=[DB_PASSWORD];TrustServerCertificate=True;MultipleActiveResultSets=True"
+      Jwt__timeValidityAccessToken: "30"
+      Jwt__timeValidityRefreshToken: "7"
+      Jwt__Key: "xxxx"
+      Jwt__NameKey: "xxxx"
+      Jwt__SurnameKey: "xxxx"
+      Jwt__EmailKey: "xxxx"
+      Jwt__SaltKey: "xxxx"
+      Jwt__PasswordPepper: "xxxx"
+      Jwt__Issuer: "*"
+      Jwt__Audience: "*"
+      "SMTP__Password": "xxxx"
+      "SMTP__Host": "xxxx"
+      "SMTP__Port": "xxxx"
+      "SMTP__MailAdress": "xxxx"
     depends_on:
       - db
     ports:

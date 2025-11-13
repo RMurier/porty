@@ -28,7 +28,7 @@ Deux environnements :
 
 ## Architecture
 
-### Vue d’ensemble (Kubernetes)
+### Vue d'ensemble (Kubernetes)
 
 > Diagramme **compat GitHub**
 
@@ -115,7 +115,7 @@ front/                               # app React TypeScript
 api/                                 # API .NET 8
 ```
 
-> Le workflow construit l’image **API** sans Dockerfile persistant (publish + commit sur `mcr.microsoft.com/dotnet/aspnet:8.0`) et génère à la volée un Dockerfile **NGINX** pour le front (avec fallback SPA).
+> Le workflow construit l'image **API** sans Dockerfile persistant (publish + commit sur `mcr.microsoft.com/dotnet/aspnet:8.0`) et génère à la volée un Dockerfile **NGINX** pour le front (avec fallback SPA).
 
 ---
 
@@ -125,7 +125,7 @@ api/                                 # API .NET 8
 - **cert-manager** installé (CRDs + controller).
 - `kubeconfig` valide (fourni à la CI via `KUBE_CONFIG`).
 - Accès **GHCR** avec token PAT (`TOKEN_GITHUB`).
-- **DNS** : enregistrements `A` vers l’IP du service `traefik` (LB).
+- **DNS** : enregistrements `A` vers l'IP du service `traefik` (LB).
 
 Installer cert-manager rapidement (Helm) :
 ```bash
